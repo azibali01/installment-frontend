@@ -1,7 +1,13 @@
 "use client";
 
 import type React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { LoginPage } from "./pages/LoginPage";
@@ -122,15 +128,15 @@ export function App() {
   );
 }
 
-// Layout component hides the Sidebar on specific routes (e.g. /login)
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const location = (window as any).location;
-  // If you prefer using react-router's useLocation, we would need to
-  // place Layout inside Router context — but App already renders it inside BrowserRouter.
-  // For simplicity and to avoid hook issues, use window.location.pathname here.
+  const location = useLocation();
   const path = location?.pathname || "/";
   const hideSidebarOn = ["/login"];
-  const showSidebar = !hideSidebarOn.includes(path);
+
+  const normalized = path.replace(/\/+$/, "");
+  const showSidebar = !hideSidebarOn.some(
+    (p) => normalized === p || normalized.startsWith(p + "/")
+  );
 
   return (
     <div className="flex">
