@@ -39,88 +39,103 @@ export function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <div className="flex">
-          <Sidebar />
-          <div className="flex-1">
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route
-                path="/dashboard"
-                element={
-                  <ProtectedRoute>
-                    <DashboardPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/customers"
-                element={
-                  <ProtectedRoute>
-                    <CustomersPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/products"
-                element={
-                  <ProtectedRoute>
-                    <ProductsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/installments"
-                element={
-                  <ProtectedRoute>
-                    <InstallmentsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/users"
-                element={
-                  <ProtectedRoute>
-                    <UsersPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/payments"
-                element={
-                  <ProtectedRoute>
-                    <PaymentsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/expenses"
-                element={
-                  <ProtectedRoute>
-                    <ExpensesPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/reports"
-                element={
-                  <ProtectedRoute>
-                    <ReportsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/roles"
-                element={
-                  <ProtectedRoute>
-                    <RolesPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="/" element={<Navigate to="/dashboard" />} />
-            </Routes>
-          </div>
-        </div>
+        <Layout>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <DashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/customers"
+              element={
+                <ProtectedRoute>
+                  <CustomersPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/products"
+              element={
+                <ProtectedRoute>
+                  <ProductsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/installments"
+              element={
+                <ProtectedRoute>
+                  <InstallmentsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/users"
+              element={
+                <ProtectedRoute>
+                  <UsersPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/payments"
+              element={
+                <ProtectedRoute>
+                  <PaymentsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/expenses"
+              element={
+                <ProtectedRoute>
+                  <ExpensesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reports"
+              element={
+                <ProtectedRoute>
+                  <ReportsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/roles"
+              element={
+                <ProtectedRoute>
+                  <RolesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/" element={<Navigate to="/dashboard" />} />
+          </Routes>
+        </Layout>
       </BrowserRouter>
     </AuthProvider>
   );
 }
+
+// Layout component hides the Sidebar on specific routes (e.g. /login)
+const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const location = (window as any).location;
+  // If you prefer using react-router's useLocation, we would need to
+  // place Layout inside Router context — but App already renders it inside BrowserRouter.
+  // For simplicity and to avoid hook issues, use window.location.pathname here.
+  const path = location?.pathname || "/";
+  const hideSidebarOn = ["/login"];
+  const showSidebar = !hideSidebarOn.includes(path);
+
+  return (
+    <div className="flex">
+      {showSidebar && <Sidebar />}
+      <div className="flex-1">{children}</div>
+    </div>
+  );
+};
