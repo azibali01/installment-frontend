@@ -12,6 +12,9 @@ export interface Product {
   name: string
   price: number
   description?: string
+  quantity?: number
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface Customer {
@@ -20,17 +23,33 @@ export interface Customer {
   phone: string
   cnic: string
   address: string
+  so?: string
+  cast?: string
 }
 
 export interface InstallmentPlan {
   _id: string
+  startDate?: string
+  endDate?: string
   customerId: Customer
   productId: Product
+  bankCheque?: {
+    bankName?: string
+    branch?: string
+    accountNumber?: string
+    chequeNumber?: string
+  }
+  guarantors?: Array<{
+    name?: string
+    relation?: string
+    phone?: string
+    cnicMasked?: string
+  }>
   totalAmount: number
   downPayment: number
   remainingBalance: number
   monthlyInstallment: number
-  interestRate: number
+  markupPercent: number
   numberOfMonths: number
   status: "pending" | "approved" | "rejected" | "completed"
   installmentSchedule: Array<{
@@ -38,6 +57,8 @@ export interface InstallmentPlan {
     dueDate: string
     amount: number
     status: "pending" | "paid" | "overdue"
+    paidAmount?: number
+    paidDate?: string
   }>
 }
 

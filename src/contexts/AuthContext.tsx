@@ -34,13 +34,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setToken(storedToken);
         const parsed = JSON.parse(storedUser);
         setUser(parsed);
+        client.defaults.headers.Authorization = `Bearer ${storedToken}`;
 
-        try {
-          client.defaults.headers.Authorization = `Bearer ${storedToken}`;
-          const res = await client.get(`/roles/${parsed.role}`);
-          setPermissions(res.data.permissions || []);
-        } catch (err) {
-          setPermissions([]);
+        if (
+          !parsed.permissions ||
+          !Array.isArray(parsed.permissions) ||
+          parsed.permissions.length === 0
+        ) {
+          try {
+            const res = await client.get("/auth/me");
+            const freshUser = res.data.user;
+            setUser(freshUser);
+            setPermissions(freshUser.permissions || []);
+            localStorage.setItem("user", JSON.stringify(freshUser));
+          } catch (err) {
+            setPermissions(parsed.permissions || []);
+          }
+        } else {
+          setPermissions(parsed.permissions || []);
         }
       }
       setIsLoading(false);
@@ -59,12 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setToken(data.token);
       setUser(data.user);
 
-      try {
-        const rp = await client.get(`/roles/${data.user.role}`);
-        setPermissions(rp.data.permissions || []);
-      } catch (err) {
-        setPermissions([]);
-      }
+      setPermissions(data.user?.permissions || []);
     } catch (error) {
       throw error;
     }

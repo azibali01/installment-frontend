@@ -13,13 +13,18 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { LoginPage } from "./pages/LoginPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { CustomersPage } from "./pages/CustomersPage";
+import CustomerDetailPage from "./pages/CustomerDetailPage";
 import { ProductsPage } from "./pages/ProductsPage";
-import { InstallmentsPage } from "./pages/InstallmentsPage";
+
+import InstallmentDetailPage from "./pages/InstallmentDetailPage";
+import ProductDetailPage from "./pages/ProductDetailPage";
 import { UsersPage } from "./pages/UsersPage";
 import { PaymentsPage } from "./pages/PaymentsPage";
 import { ExpensesPage } from "./pages/ExpensesPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import RolesPage from "./pages/RolesPage";
+import InstallmentsPage from "./pages/InstallmentsPage";
+import RequestsPage from "./pages/RequestsPage";
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -65,6 +70,14 @@ export function App() {
               }
             />
             <Route
+              path="/customer/:id"
+              element={
+                <ProtectedRoute>
+                  <CustomerDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/products"
               element={
                 <ProtectedRoute>
@@ -77,6 +90,30 @@ export function App() {
               element={
                 <ProtectedRoute>
                   <InstallmentsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/requests"
+              element={
+                <ProtectedRoute>
+                  <RequestsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/installment/:id"
+              element={
+                <ProtectedRoute>
+                  <InstallmentDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/product/:id"
+              element={
+                <ProtectedRoute>
+                  <ProductDetailPage />
                 </ProtectedRoute>
               }
             />

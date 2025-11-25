@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import client from "../api/client";
+import Pagination from "../components/Pagination";
+import ConfirmModal from "../components/ConfirmModal";
 import type { Expense as ExpenseType, User } from "../types";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -12,7 +14,16 @@ export const ExpensesPage: React.FC = () => {
   const [expenses, setExpenses] = useState<ExpenseType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [totalExpenses, setTotalExpenses] = useState<number>(0);
+  const [filterCategory, setFilterCategory] = useState<string>("");
+  const [filterUser, setFilterUser] = useState<string>("");
 
   const [formData, setFormData] = useState({
     title: "",
@@ -26,17 +37,31 @@ export const ExpensesPage: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    void fetchData();
+  }, [currentPage, pageSize, filterCategory, filterUser]);
 
   const fetchData = async () => {
     setIsLoading(true);
+    setError("");
     try {
+      const params: any = { page: currentPage, pageSize };
+      if (filterCategory) params.category = filterCategory;
+      if (filterUser) params.relatedUser = filterUser;
+
       const [res, usersRes] = await Promise.all([
-        client.get("/expenses"),
+        client.get("/expenses", { params }),
         client.get("/users"),
       ]);
-      setExpenses(res.data || []);
+
+      if (Array.isArray(res.data)) {
+        setExpenses(res.data || []);
+        setTotalExpenses(res.data.length || 0);
+      } else {
+        setExpenses(res.data.data || res.data || []);
+        setTotalExpenses(res.data.total || 0);
+        if (res.data.page) setCurrentPage(res.data.page);
+        if (res.data.pageSize) setPageSize(res.data.pageSize);
+      }
 
       const normalizedUsers: User[] = (usersRes.data || []).map((u: any) => ({
         ...u,
@@ -53,14 +78,20 @@ export const ExpensesPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await client.post("/expenses", {
+      const payload = {
         title: formData.title,
         amount: Number.parseFloat(formData.amount),
         date: new Date(formData.date),
         category: formData.category,
         description: formData.notes,
         relatedUser: formData.relatedUser || undefined,
-      });
+      };
+
+      if (editingId) {
+        await client.put(`/expenses/${editingId}`, payload);
+      } else {
+        await client.post("/expenses", payload);
+      }
 
       setFormData({
         title: "",
@@ -71,23 +102,33 @@ export const ExpensesPage: React.FC = () => {
         relatedUser: "",
       });
       setShowForm(false);
+      setEditingId(null);
       await fetchData();
     } catch (err: any) {
       setError(err.response?.data?.error || "Failed to record expense");
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this expense?")) return;
+  const handleDelete = (id: string) => {
+    setDeleteTargetId(id);
+    setDeleteModalOpen(true);
+  };
+
+  const performDelete = async () => {
+    if (!deleteTargetId) return;
     try {
-      await client.delete(`/expenses/${id}`);
+      setDeletingId(deleteTargetId);
+      await client.delete(`/expenses/${deleteTargetId}`);
+      setDeleteModalOpen(false);
+      setDeleteTargetId(null);
       await fetchData();
     } catch (err) {
-      // show server-provided error when available to help debugging
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const e: any = err;
       console.error("Delete expense error:", e);
       setError(e?.response?.data?.error || "Failed to delete expense");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -109,10 +150,30 @@ export const ExpensesPage: React.FC = () => {
           </div>
           {canCreate && (
             <button
-              onClick={() => setShowForm(!showForm)}
+              onClick={() => {
+                if (showForm) {
+                  setShowForm(false);
+                  setEditingId(null);
+                  setFormData({
+                    title: "",
+                    amount: "",
+                    date: new Date().toISOString().split("T")[0],
+                    category: "",
+                    notes: "",
+                    relatedUser: "",
+                  });
+                } else {
+                  setShowForm(true);
+                  setEditingId(null);
+                }
+              }}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition"
             >
-              {showForm ? "Cancel" : "Record Expense"}
+              {showForm
+                ? editingId
+                  ? "Cancel Edit"
+                  : "Cancel"
+                : "Record Expense"}
             </button>
           )}
         </div>
@@ -131,7 +192,7 @@ export const ExpensesPage: React.FC = () => {
         {showForm && (
           <div className="card p-6 mb-8">
             <h2 className="text-xl font-semibold text-slate-900 mb-4">
-              Record Expense
+              {editingId ? "Edit Expense" : "Record Expense"}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -215,11 +276,65 @@ export const ExpensesPage: React.FC = () => {
                 type="submit"
                 className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded transition"
               >
-                Save Expense
+                {editingId ? "Save Changes" : "Save Expense"}
               </button>
             </form>
           </div>
         )}
+
+        {/* Filters toolbar */}
+        <div className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <select
+              value={filterCategory}
+              onChange={(e) => {
+                setFilterCategory(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-3 py-2 bg-white border border-gray-300 rounded text-slate-900"
+            >
+              <option value="">All Categories</option>
+              <option value="salary">Salary</option>
+              <option value="rent">Rent</option>
+              <option value="utilities">Utilities</option>
+              <option value="inventory_purchase">Inventory Purchase</option>
+              <option value="supplies">Supplies</option>
+              <option value="marketing">Marketing</option>
+              <option value="maintenance">Maintenance</option>
+              <option value="logistics">Logistics / Shipping</option>
+              <option value="taxes">Taxes / Fees</option>
+              <option value="other">Other</option>
+            </select>
+
+            <select
+              value={filterUser}
+              onChange={(e) => {
+                setFilterUser(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-3 py-2 bg-white border border-gray-300 rounded text-slate-900"
+            >
+              <option value="">All Users</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setFilterCategory("");
+                setFilterUser("");
+                setCurrentPage(1);
+              }}
+              className="px-3 py-2 bg-gray-100 border border-gray-200 rounded text-slate-700"
+            >
+              Reset Filters
+            </button>
+          </div>
+        </div>
 
         <div className="card overflow-x-auto">
           <table className="w-full whitespace-nowrap">
@@ -277,22 +392,77 @@ export const ExpensesPage: React.FC = () => {
                       {new Date(exp.date).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 text-slate-900">
-                      {canDelete ? (
-                        <button
-                          onClick={() => handleDelete(exp._id)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          Delete
-                        </button>
-                      ) : (
-                        <span className="text-slate-400">-</span>
-                      )}
+                      <div className="flex items-center gap-3">
+                        {(["admin", "manager"].includes(user?.role || "") ||
+                          hasPermission("manage_expenses")) && (
+                          <button
+                            onClick={() => {
+                              // open edit form with prefilled data
+                              setEditingId(exp._id);
+                              setFormData({
+                                title: exp.description || exp.category || "",
+                                amount: String(exp.amount || ""),
+                                date: new Date(exp.date)
+                                  .toISOString()
+                                  .slice(0, 10),
+                                category: exp.category || "",
+                                notes: exp.description || "",
+                                relatedUser:
+                                  (exp.relatedUser &&
+                                    (typeof exp.relatedUser === "string"
+                                      ? exp.relatedUser
+                                      : exp.relatedUser.id ||
+                                        (exp.relatedUser as any)._id)) ||
+                                  "",
+                              });
+                              setShowForm(true);
+                            }}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        {canDelete ? (
+                          <button
+                            onClick={() => handleDelete(exp._id)}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            Delete
+                          </button>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
+          <Pagination
+            page={currentPage}
+            pageSize={pageSize}
+            total={totalExpenses}
+            onPageChange={(p) => setCurrentPage(p)}
+            onPageSizeChange={(s) => {
+              setPageSize(s);
+              setCurrentPage(1);
+            }}
+          />
+          <ConfirmModal
+            isOpen={deleteModalOpen}
+            title="Delete Expense"
+            message="Are you sure you want to delete this expense? This action cannot be undone."
+            confirmLabel={
+              deletingId === deleteTargetId ? "Deleting…" : "Delete"
+            }
+            cancelLabel="Cancel"
+            onConfirm={performDelete}
+            onCancel={() => {
+              setDeleteModalOpen(false);
+              setDeleteTargetId(null);
+            }}
+          />
         </div>
       </main>
     </div>

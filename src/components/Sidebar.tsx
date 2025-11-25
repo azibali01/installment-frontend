@@ -101,6 +101,16 @@ const ReportsIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </IconWrapper>
 );
 
+const RequestsIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <IconWrapper {...props}>
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M4 7h16M4 12h10M4 17h16"
+    />
+  </IconWrapper>
+);
+
 const UsersIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <IconWrapper {...props}>
     <path
@@ -177,6 +187,13 @@ export const Sidebar: React.FC = () => {
         >
           Installments
         </LinkItem>
+        {(user?.role === "admin" ||
+          user?.role === "manager" ||
+          (hasPermission && hasPermission("manage_installments"))) && (
+          <LinkItem to="/requests" icon={<RequestsIcon className="w-5 h-5" />}>
+            Requests
+          </LinkItem>
+        )}
         <LinkItem to="/payments" icon={<PaymentIcon className="w-5 h-5" />}>
           Payments
         </LinkItem>

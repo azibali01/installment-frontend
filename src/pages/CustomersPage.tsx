@@ -9,7 +9,7 @@ import type { Customer } from "../types";
 
 export const CustomersPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { hasPermission, isLoading: authLoading } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -18,20 +18,26 @@ export const CustomersPage: React.FC = () => {
     phone: "",
     cnic: "",
     address: "",
+    so: "",
+    cast: "",
   });
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    fetchCustomers();
-  }, []);
+    if (!authLoading) fetchCustomers();
+  }, [authLoading]);
 
   const fetchCustomers = async () => {
     try {
       const { data } = await client.get("/customers");
       setCustomers(data);
     } catch (err) {
-      setError("Failed to fetch customers");
-      console.error(err);
+      const resData = (err as any)?.response?.data;
+      const msg =
+        resData?.error || (err as any)?.message || "Failed to fetch customers";
+      setError(msg);
+      console.error("fetchCustomers error:", err);
     } finally {
       setIsLoading(false);
     }
@@ -41,11 +47,36 @@ export const CustomersPage: React.FC = () => {
     e.preventDefault();
     try {
       await client.post("/customers", formData);
-      setFormData({ name: "", phone: "", cnic: "", address: "" });
+      setFormData({
+        name: "",
+        phone: "",
+        cnic: "",
+        address: "",
+        so: "",
+        cast: "",
+      });
       setShowForm(false);
       await fetchCustomers();
     } catch (err) {
-      setError("Failed to create customer");
+      const resData = (err as any)?.response?.data;
+      if (resData?.errors && Array.isArray(resData.errors)) {
+        const map: Record<string, string> = {};
+        const msgs: string[] = [];
+        resData.errors.forEach((e: any) => {
+          const key = e.param || e.path || "_form";
+
+          if (!map[key]) map[key] = e.msg || e.message || "Invalid";
+          msgs.push(e.msg || e.message);
+        });
+        setFieldErrors(map);
+        setError(msgs.join("; ") || "Validation failed");
+      } else {
+        const msg =
+          resData?.error ||
+          (err as any)?.message ||
+          "Failed to create customer";
+        setError(msg);
+      }
     }
   };
 
@@ -88,46 +119,159 @@ export const CustomersPage: React.FC = () => {
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input
-                  type="text"
-                  placeholder="Full Name"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
-                  required
-                />
-                <input
-                  type="tel"
-                  placeholder="Phone Number"
-                  value={formData.phone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
-                  className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
-                  required
-                />
-                <input
-                  type="text"
-                  placeholder="CNIC"
-                  value={formData.cnic}
-                  onChange={(e) =>
-                    setFormData({ ...formData, cnic: e.target.value })
-                  }
-                  className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
-                  required
-                />
-                <input
-                  type="text"
-                  placeholder="Address"
-                  value={formData.address}
-                  onChange={(e) =>
-                    setFormData({ ...formData, address: e.target.value })
-                  }
-                  className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
-                  required
-                />
+                <div>
+                  <label className="block text-sm font-medium text-slate-700">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Full Name"
+                    value={formData.name}
+                    onChange={(e) => {
+                      setFormData({ ...formData, name: e.target.value });
+                      setFieldErrors((p) => {
+                        const c = { ...p };
+                        delete c.name;
+                        return c;
+                      });
+                    }}
+                    className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 w-full"
+                    required
+                  />
+                  {fieldErrors.name && (
+                    <p className="text-sm text-red-600 mt-1">
+                      {fieldErrors.name}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700">
+                    S/O (Father's Name)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="S/O (Father's Name)"
+                    value={(formData as any).so || ""}
+                    onChange={(e) => {
+                      setFormData({ ...formData, so: e.target.value });
+                      setFieldErrors((p) => {
+                        const c = { ...p };
+                        delete c.so;
+                        return c;
+                      });
+                    }}
+                    className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 w-full"
+                  />
+                  {fieldErrors.so && (
+                    <p className="text-sm text-red-600 mt-1">
+                      {fieldErrors.so}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700">
+                    CNIC
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="CNIC"
+                    value={formData.cnic}
+                    onChange={(e) => {
+                      setFormData({ ...formData, cnic: e.target.value });
+                      setFieldErrors((p) => {
+                        const c = { ...p };
+                        delete c.cnic;
+                        return c;
+                      });
+                    }}
+                    className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 w-full"
+                    required
+                  />
+                  {fieldErrors.cnic && (
+                    <p className="text-sm text-red-600 mt-1">
+                      {fieldErrors.cnic}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700">
+                    Phone
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="Phone Number"
+                    value={formData.phone}
+                    onChange={(e) => {
+                      setFormData({ ...formData, phone: e.target.value });
+                      setFieldErrors((p) => {
+                        const c = { ...p };
+                        delete c.phone;
+                        return c;
+                      });
+                    }}
+                    className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 w-full"
+                    required
+                  />
+                  {fieldErrors.phone && (
+                    <p className="text-sm text-red-600 mt-1">
+                      {fieldErrors.phone}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700">
+                    Cast
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Cast"
+                    value={(formData as any).cast || ""}
+                    onChange={(e) => {
+                      setFormData({ ...formData, cast: e.target.value });
+                      setFieldErrors((p) => {
+                        const c = { ...p };
+                        delete c.cast;
+                        return c;
+                      });
+                    }}
+                    className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 w-full"
+                  />
+                  {fieldErrors.cast && (
+                    <p className="text-sm text-red-600 mt-1">
+                      {fieldErrors.cast}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700">
+                    Address
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Address"
+                    value={formData.address}
+                    onChange={(e) => {
+                      setFormData({ ...formData, address: e.target.value });
+                      setFieldErrors((p) => {
+                        const c = { ...p };
+                        delete c.address;
+                        return c;
+                      });
+                    }}
+                    className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 w-full"
+                    required
+                  />
+                  {fieldErrors.address && (
+                    <p className="text-sm text-red-600 mt-1">
+                      {fieldErrors.address}
+                    </p>
+                  )}
+                </div>
               </div>
               <button
                 type="submit"
@@ -150,6 +294,12 @@ export const CustomersPage: React.FC = () => {
                   Phone
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">
+                  S/O
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">
+                  Cast
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">
                   CNIC
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">
@@ -164,7 +314,7 @@ export const CustomersPage: React.FC = () => {
               {isLoading ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={7}
                     className="px-6 py-4 text-center text-slate-400"
                   >
                     Loading...
@@ -173,7 +323,7 @@ export const CustomersPage: React.FC = () => {
               ) : customers.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={7}
                     className="px-6 py-4 text-center text-slate-400"
                   >
                     No customers found
@@ -190,6 +340,10 @@ export const CustomersPage: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-slate-900">
                       {customer.phone}
+                    </td>
+                    <td className="px-6 py-4 text-slate-900">{customer.so}</td>
+                    <td className="px-6 py-4 text-slate-900">
+                      {customer.cast}
                     </td>
                     <td className="px-6 py-4 text-slate-900">
                       {customer.cnic}

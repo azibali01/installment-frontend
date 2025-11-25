@@ -13,7 +13,12 @@ export const ProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ name: "", price: "" });
+  const [formData, setFormData] = useState({
+    name: "",
+    price: "",
+    description: "",
+    quantity: "",
+  });
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -37,8 +42,12 @@ export const ProductsPage: React.FC = () => {
       await client.post("/products", {
         name: formData.name,
         price: Number.parseFloat(formData.price),
+        description: formData.description || undefined,
+        quantity: formData.quantity
+          ? Number.parseInt(formData.quantity)
+          : undefined,
       });
-      setFormData({ name: "", price: "" });
+      setFormData({ name: "", price: "", description: "", quantity: "" });
       setShowForm(false);
       await fetchProducts();
     } catch (err) {
@@ -106,6 +115,25 @@ export const ProductsPage: React.FC = () => {
                   className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 placeholder-slate-400"
                   step="0.01"
                   required
+                />
+
+                <input
+                  type="number"
+                  placeholder="Quantity"
+                  value={formData.quantity}
+                  onChange={(e) =>
+                    setFormData({ ...formData, quantity: e.target.value })
+                  }
+                  className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 placeholder-slate-400"
+                  min={0}
+                />
+                <textarea
+                  placeholder="Description (optional)"
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
+                  className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 placeholder-slate-400"
                 />
               </div>
               <button
