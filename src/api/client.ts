@@ -1,10 +1,8 @@
 import axios from "axios";
 
 const API_BASE_URL =
-  import.meta.env.MODE === "production"
-    ? import.meta.env.VITE_API_PROD_URL
-    : import.meta.env.VITE_API_BASE_URL ||
-      "http://localhost:5000/api";
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://localhost:5000/api";
 
 console.info("Using API base URL:", API_BASE_URL);
 
@@ -44,7 +42,6 @@ client.interceptors.response.use(
 
     const status = error.response?.status;
     if (status === 401 && !original._retry) {
-
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           subscribeTokenRefresh((token) => {
@@ -61,8 +58,11 @@ client.interceptors.response.use(
       original._retry = true;
       isRefreshing = true;
       try {
-
-        const refreshRes = await axios.post(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true });
+        const refreshRes = await axios.post(
+          `${API_BASE_URL}/auth/refresh`,
+          {},
+          { withCredentials: true }
+        );
         const newToken = refreshRes.data?.token;
         if (newToken) {
           localStorage.setItem("token", newToken);
