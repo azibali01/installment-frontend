@@ -13,7 +13,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       "/api": {
-        target: "https://installment-expense-management.onrender.com",
+        target: "https://installments.goodgoodcarwash.com/",
         changeOrigin: true,
       },
     },
