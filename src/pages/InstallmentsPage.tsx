@@ -65,8 +65,8 @@ const InstallmentsPage: React.FC = () => {
       chequeNumber: "",
     },
     guarantors: [
-      { name: "", relation: "", phone: "", cnic: "" },
-      { name: "", relation: "", phone: "", cnic: "" },
+      { name: "", relation: "", phone: "", cnic: "", address: "" },
+      { name: "", relation: "", phone: "", cnic: "", address: "" },
     ],
   });
 
@@ -277,15 +277,23 @@ const InstallmentsPage: React.FC = () => {
             chequeNumber: "",
           },
           guarantors: [
-            { name: "", relation: "", phone: "", cnic: "" },
-            { name: "", relation: "", phone: "", cnic: "" },
+            { name: "", relation: "", phone: "", cnic: "", address: "" },
+            { name: "", relation: "", phone: "", cnic: "", address: "" },
           ],
         });
         setShowForm(false);
         await load(1, limit);
       }
     } catch (err: any) {
-      setError(err?.response?.data?.error || String(err) || "Failed to create");
+      // Prefer server-provided validation messages when available
+      const resp = err?.response?.data
+      if (resp) {
+        if (resp.message) setError(String(resp.message))
+        else if (Array.isArray(resp.errors) && resp.errors.length) setError(String(resp.errors[0].msg || resp.errors[0].message || 'Validation error'))
+        else setError(String(resp.error || resp.message || JSON.stringify(resp)))
+      } else {
+        setError(String(err) || "Failed to create")
+      }
     }
   }
 
@@ -346,8 +354,8 @@ const InstallmentsPage: React.FC = () => {
                       chequeNumber: "",
                     },
                     guarantors: [
-                      { name: "", relation: "", phone: "", cnic: "" },
-                      { name: "", relation: "", phone: "", cnic: "" },
+                      { name: "", relation: "", phone: "", cnic: "", address: "" },
+                      { name: "", relation: "", phone: "", cnic: "", address: "" },
                     ],
                   });
                   setShowForm(false);
@@ -682,7 +690,7 @@ const InstallmentsPage: React.FC = () => {
                       })
                     }
                     className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 w-full"
-                    required
+                    
                   />
                 </div>
                 <div>
@@ -707,7 +715,7 @@ const InstallmentsPage: React.FC = () => {
                       })
                     }
                     className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 w-full"
-                    required
+                    
                   />
                 </div>
                 <div>
@@ -829,6 +837,26 @@ const InstallmentsPage: React.FC = () => {
                         className="px-3 py-2 bg-white border border-gray-300 rounded w-full"
                       />
                     </div>
+                      <div className="mb-2">
+                        <label
+                          htmlFor={`guar-addr-${idx}`}
+                          className="block text-sm text-slate-700 mb-1"
+                        >
+                          Address
+                        </label>
+                        <input
+                          id={`guar-addr-${idx}`}
+                          type="text"
+                          placeholder="Address"
+                          value={g.address}
+                          onChange={(e) => {
+                            const next = [...formData.guarantors];
+                            next[idx] = { ...next[idx], address: e.target.value };
+                            setFormData({ ...formData, guarantors: next });
+                          }}
+                          className="px-3 py-2 bg-white border border-gray-300 rounded w-full"
+                        />
+                      </div>
                     <div>
                       <label
                         htmlFor={`guar-cnic-${idx}`}
@@ -1103,6 +1131,7 @@ const InstallmentsPage: React.FC = () => {
                                       (g.cnicMasked
                                         ? cleanCNIC(String(g.cnicMasked))
                                         : ""),
+                                    address: g.address || "",
                                   }))
                                 : [
                                     {
@@ -1110,12 +1139,14 @@ const InstallmentsPage: React.FC = () => {
                                       relation: "",
                                       phone: "",
                                       cnic: "",
+                                      address: "",
                                     },
                                     {
                                       name: "",
                                       relation: "",
                                       phone: "",
                                       cnic: "",
+                                      address: "",
                                     },
                                   ],
                           });
@@ -1193,6 +1224,7 @@ const InstallmentsPage: React.FC = () => {
                                       (g.cnicMasked
                                         ? cleanCNIC(String(g.cnicMasked))
                                         : ""),
+                                    address: g.address || "",
                                   }))
                                 : [
                                     {
@@ -1200,12 +1232,14 @@ const InstallmentsPage: React.FC = () => {
                                       relation: "",
                                       phone: "",
                                       cnic: "",
+                                      address: "",
                                     },
                                     {
                                       name: "",
                                       relation: "",
                                       phone: "",
                                       cnic: "",
+                                      address: "",
                                     },
                                   ],
                           });

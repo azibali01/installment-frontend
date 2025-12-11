@@ -1,7 +1,7 @@
 "use client";
 
-import React from "react";
-import { NavLink } from "react-router-dom";
+import React, { useRef } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
 const IconWrapper = ({ children, ...props }: React.SVGProps<SVGSVGElement>) => (
@@ -141,13 +141,15 @@ const RolesIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </IconWrapper>
 );
 
-const LinkItem: React.FC<{
+const LinkItemInner: React.FC<{
   to: string;
   icon?: React.ReactNode;
   children: React.ReactNode;
-}> = ({ to, icon, children }) => (
+  onClick: (e: React.MouseEvent, to: string) => void;
+}> = ({ to, icon, children, onClick }) => (
   <NavLink
     to={to}
+    onClick={(e) => onClick(e, to)}
     className={({ isActive }) =>
       `flex items-center gap-3 px-4 py-2 rounded hover:bg-gray-100 transition ${
         isActive ? "bg-gray-100 font-semibold" : "text-slate-700"
@@ -161,6 +163,15 @@ const LinkItem: React.FC<{
 
 export const Sidebar: React.FC = () => {
   const { user, hasPermission } = useAuth();
+  const navigate = useNavigate();
+  const navTimer = useRef<number | null>(null);
+
+  const handleNav = (e: React.MouseEvent, to: string) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+    e.preventDefault();
+    if (navTimer.current) window.clearTimeout(navTimer.current);
+    navTimer.current = window.setTimeout(() => navigate(to), 200);
+  };
 
   return (
     <aside className="w-56 bg-white border-r border-gray-200 h-screen sticky top-0">
@@ -172,48 +183,45 @@ export const Sidebar: React.FC = () => {
       </div>
 
       <nav className="p-4 space-y-1">
-        <LinkItem to="/dashboard" icon={<DashboardIcon className="w-5 h-5" />}>
+        <LinkItemInner to="/dashboard" icon={<DashboardIcon className="w-5 h-5" />} onClick={handleNav}>
           Dashboard
-        </LinkItem>
-        <LinkItem to="/customers" icon={<CustomersIcon className="w-5 h-5" />}>
+        </LinkItemInner>
+        <LinkItemInner to="/customers" icon={<CustomersIcon className="w-5 h-5" />} onClick={handleNav}>
           Customers
-        </LinkItem>
-        <LinkItem to="/products" icon={<ProductIcon className="w-5 h-5" />}>
+        </LinkItemInner>
+        <LinkItemInner to="/products" icon={<ProductIcon className="w-5 h-5" />} onClick={handleNav}>
           Products
-        </LinkItem>
-        <LinkItem
-          to="/installments"
-          icon={<InstallmentIcon className="w-5 h-5" />}
-        >
+        </LinkItemInner>
+        <LinkItemInner to="/installments" icon={<InstallmentIcon className="w-5 h-5" />} onClick={handleNav}>
           Installments
-        </LinkItem>
+        </LinkItemInner>
         {(user?.role === "admin" ||
           user?.role === "manager" ||
           (hasPermission && hasPermission("manage_installments"))) && (
-          <LinkItem to="/requests" icon={<RequestsIcon className="w-5 h-5" />}>
+          <LinkItemInner to="/requests" icon={<RequestsIcon className="w-5 h-5" />} onClick={handleNav}>
             Requests
-          </LinkItem>
+          </LinkItemInner>
         )}
-        <LinkItem to="/payments" icon={<PaymentIcon className="w-5 h-5" />}>
+        <LinkItemInner to="/payments" icon={<PaymentIcon className="w-5 h-5" />} onClick={handleNav}>
           Payments
-        </LinkItem>
-        <LinkItem to="/expenses" icon={<ExpenseIcon className="w-5 h-5" />}>
+        </LinkItemInner>
+        <LinkItemInner to="/expenses" icon={<ExpenseIcon className="w-5 h-5" />} onClick={handleNav}>
           Expenses
-        </LinkItem>
-        <LinkItem to="/reports" icon={<ReportsIcon className="w-5 h-5" />}>
+        </LinkItemInner>
+        <LinkItemInner to="/reports" icon={<ReportsIcon className="w-5 h-5" />} onClick={handleNav}>
           Reports
-        </LinkItem>
+        </LinkItemInner>
         {(user?.role === "admin" ||
           (hasPermission && hasPermission("manage_users"))) && (
-          <LinkItem to="/users" icon={<UsersIcon className="w-5 h-5" />}>
+          <LinkItemInner to="/users" icon={<UsersIcon className="w-5 h-5" />} onClick={handleNav}>
             Users
-          </LinkItem>
+          </LinkItemInner>
         )}
         {(user?.role === "admin" ||
           (hasPermission && hasPermission("manage_roles"))) && (
-          <LinkItem to="/roles" icon={<RolesIcon className="w-5 h-5" />}>
+          <LinkItemInner to="/roles" icon={<RolesIcon className="w-5 h-5" />} onClick={handleNav}>
             Roles
-          </LinkItem>
+          </LinkItemInner>
         )}
       </nav>
     </aside>

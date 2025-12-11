@@ -42,8 +42,8 @@ const InstallmentDetailPage: React.FC = () => {
       chequeNumber: "",
     },
     guarantors: [
-      { name: "", relation: "", phone: "", cnic: "" },
-      { name: "", relation: "", phone: "", cnic: "" },
+      { name: "", relation: "", phone: "", cnic: "", address: "" },
+      { name: "", relation: "", phone: "", cnic: "", address: "" },
     ],
   });
   const [requestLoading, setRequestLoading] = useState<boolean>(false);
@@ -469,10 +469,11 @@ const InstallmentDetailPage: React.FC = () => {
               relation: g.relation || "",
               phone: g.phone || "",
               cnic: "",
+              address: g.address || "",
             }))
           : [
-              { name: "", relation: "", phone: "", cnic: "" },
-              { name: "", relation: "", phone: "", cnic: "" },
+              { name: "", relation: "", phone: "", cnic: "", address: "" },
+              { name: "", relation: "", phone: "", cnic: "", address: "" },
             ],
     });
     setRequestMessage("");
@@ -509,6 +510,7 @@ const InstallmentDetailPage: React.FC = () => {
         relation: g.relation,
         phone: g.phone,
         cnic: String(g.cnic || ""),
+        address: g.address || undefined,
       }));
 
       // attach the preview schedule (server should still validate/recalc)
@@ -549,12 +551,14 @@ const InstallmentDetailPage: React.FC = () => {
           relation: g.relation || "",
           phone: g.phone || "",
           cnic: g.cnic || "",
+          address: g.address || "",
         }));
         const newG = payload.guarantors.map((g: any) => ({
           name: g.name || "",
           relation: g.relation || "",
           phone: g.phone || "",
           cnic: g.cnic || "",
+          address: g.address || "",
         }));
         if (JSON.stringify(planG) !== JSON.stringify(newG)) {
           changes.guarantors = payload.guarantors;
@@ -1157,6 +1161,26 @@ const InstallmentDetailPage: React.FC = () => {
                           }}
                           className="px-3 py-2 border rounded w-full mb-2"
                         />
+                        <div className="mb-2">
+                          <label
+                            htmlFor={`guar-addr-${idx}`}
+                            className="block text-sm text-slate-700 mb-1"
+                          >
+                            Address
+                          </label>
+                          <input
+                            id={`guar-addr-${idx}`}
+                            type="text"
+                            placeholder="Address"
+                            value={g.address}
+                            onChange={(e) => {
+                              const next = [...formData.guarantors];
+                              next[idx] = { ...next[idx], address: e.target.value };
+                              setFormData({ ...formData, guarantors: next });
+                            }}
+                            className="px-3 py-2 border rounded w-full mb-2"
+                          />
+                        </div>
                         <input
                           type="text"
                           placeholder="CNIC (13 digits)"

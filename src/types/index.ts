@@ -44,6 +44,7 @@ export interface InstallmentPlan {
     relation?: string
     phone?: string
     cnicMasked?: string
+    address?: string
   }>
   totalAmount: number
   downPayment: number

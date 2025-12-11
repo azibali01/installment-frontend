@@ -1,8 +1,10 @@
 import axios from "axios";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:5000/api";
+// Use explicit VITE_API_BASE_URL when provided; otherwise fall back to a
+// relative `/api` path so deployed builds call the same origin by default.
+// If your backend is hosted on a different origin, set `VITE_API_BASE_URL`
+// in your hosting environment to the backend URL (e.g. https://api.example.com/api).
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
 console.info("Using API base URL:", API_BASE_URL);
 
