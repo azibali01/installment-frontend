@@ -10,13 +10,12 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
+    port: 5173,
     proxy: {
       "/api": {
-        target: "https://installments.goodgoodcarwash.com/",
+        target: "http://localhost:3000",
         changeOrigin: true,
       },
     },
   },
 })
-//test

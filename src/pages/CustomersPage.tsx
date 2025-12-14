@@ -6,6 +6,9 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import client from "../api/client";
 import type { Customer } from "../types";
+import { formatCNIC, cleanCNIC } from "../utils/cnic";
+import { formatPhone, cleanPhone } from "../utils/phone";
+import { handleApiError, getContextualErrorMessage } from "../utils/errorHandler";
 
 export const CustomersPage: React.FC = () => {
   const navigate = useNavigate();
@@ -64,18 +67,14 @@ export const CustomersPage: React.FC = () => {
         const msgs: string[] = [];
         resData.errors.forEach((e: any) => {
           const key = e.param || e.path || "_form";
-
           if (!map[key]) map[key] = e.msg || e.message || "Invalid";
           msgs.push(e.msg || e.message);
         });
         setFieldErrors(map);
         setError(msgs.join("; ") || "Validation failed");
       } else {
-        const msg =
-          resData?.error ||
-          (err as any)?.message ||
-          "Failed to create customer";
-        setError(msg);
+        const errorMessage = getContextualErrorMessage(err, "create");
+        setError(errorMessage);
       }
     }
   };
@@ -104,9 +103,21 @@ export const CustomersPage: React.FC = () => {
 
       <main className="w-full px-4 sm:px-6 lg:px-8 py-8">
         {error && (
-          <div className="bg-red-100 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
-            {error}
-            <button onClick={() => setError("")} className="float-right">
+          <div className="bg-red-50 border-l-4 border-red-500 text-red-800 px-4 py-3 rounded mb-6 flex items-start gap-3 shadow-sm">
+            <div className="flex-shrink-0 mt-0.5">
+              <svg className="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="font-medium">Error</p>
+              <p className="text-sm mt-1">{error}</p>
+            </div>
+            <button 
+              onClick={() => setError("")} 
+              className="flex-shrink-0 text-red-600 hover:text-red-800 transition"
+              aria-label="Close error"
+            >
               ✕
             </button>
           </div>
@@ -176,16 +187,18 @@ export const CustomersPage: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    placeholder="CNIC"
-                    value={formData.cnic}
+                    placeholder="12345-1234567-1"
+                    value={formatCNIC(formData.cnic)}
                     onChange={(e) => {
-                      setFormData({ ...formData, cnic: e.target.value });
+                      const cleaned = cleanCNIC(e.target.value);
+                      setFormData({ ...formData, cnic: cleaned });
                       setFieldErrors((p) => {
                         const c = { ...p };
                         delete c.cnic;
                         return c;
                       });
                     }}
+                    maxLength={15}
                     className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 w-full"
                     required
                   />
@@ -202,16 +215,18 @@ export const CustomersPage: React.FC = () => {
                   </label>
                   <input
                     type="tel"
-                    placeholder="Phone Number"
-                    value={formData.phone}
+                    placeholder="0300-1234567"
+                    value={formatPhone(formData.phone)}
                     onChange={(e) => {
-                      setFormData({ ...formData, phone: e.target.value });
+                      const cleaned = cleanPhone(e.target.value);
+                      setFormData({ ...formData, phone: cleaned });
                       setFieldErrors((p) => {
                         const c = { ...p };
                         delete c.phone;
                         return c;
                       });
                     }}
+                    maxLength={13}
                     className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 w-full"
                     required
                   />
@@ -288,6 +303,9 @@ export const CustomersPage: React.FC = () => {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">
+                  ID
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">
                   Name
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">
@@ -314,7 +332,7 @@ export const CustomersPage: React.FC = () => {
               {isLoading ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-6 py-4 text-center text-slate-400"
                   >
                     Loading...
@@ -323,7 +341,7 @@ export const CustomersPage: React.FC = () => {
               ) : customers.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-6 py-4 text-center text-slate-400"
                   >
                     No customers found
@@ -335,18 +353,21 @@ export const CustomersPage: React.FC = () => {
                     key={customer._id}
                     className="hover:bg-gray-50 transition"
                   >
+                    <td className="px-6 py-4 text-slate-600 text-sm font-semibold">
+                      {customer.customerId || customer._id.slice(-8)}
+                    </td>
                     <td className="px-6 py-4 text-slate-900">
                       {customer.name}
                     </td>
                     <td className="px-6 py-4 text-slate-900">
-                      {customer.phone}
+                      {formatPhone(customer.phone)}
                     </td>
                     <td className="px-6 py-4 text-slate-900">{customer.so}</td>
                     <td className="px-6 py-4 text-slate-900">
                       {customer.cast}
                     </td>
                     <td className="px-6 py-4 text-slate-900">
-                      {customer.cnic}
+                      {formatCNIC(customer.cnic)}
                     </td>
                     <td className="px-6 py-4 text-slate-900 truncate">
                       {customer.address}

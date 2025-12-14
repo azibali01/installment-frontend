@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import client from "../api/client";
 import ConfirmModal from "../components/ConfirmModal";
 import { useAuth } from "../contexts/AuthContext";
+import { formatCurrency } from "../utils/format";
 
 type Req = {
   _id: string;
@@ -199,9 +200,7 @@ const RequestsPage: React.FC = () => {
                           {r.installmentId.customerId?.name
                             ? `${r.installmentId.customerId.name} — ${
                                 r.installmentId.totalAmount
-                                  ? Number(
-                                      r.installmentId.totalAmount
-                                    ).toLocaleString()
+                                  ? formatCurrency(r.installmentId.totalAmount)
                                   : r.installmentId._id
                               }`
                             : r.installmentId._id}

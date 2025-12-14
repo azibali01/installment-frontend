@@ -5,6 +5,7 @@ export interface User {
   role: "admin" | "manager" | "employee"
   phone?: string
   salary?: number
+  cashBalance?: number
 }
 
 export interface Product {
@@ -19,6 +20,7 @@ export interface Product {
 
 export interface Customer {
   _id: string
+  customerId?: number
   name: string
   phone: string
   cnic: string
@@ -29,6 +31,7 @@ export interface Customer {
 
 export interface InstallmentPlan {
   _id: string
+  installmentId?: string
   startDate?: string
   endDate?: string
   customerId: Customer
@@ -53,6 +56,7 @@ export interface InstallmentPlan {
   markupPercent: number
   numberOfMonths: number
   status: "pending" | "approved" | "rejected" | "completed"
+  reference?: string
   installmentSchedule: Array<{
     month: number
     dueDate: string
@@ -80,4 +84,16 @@ export interface Expense {
   description: string
   userId: User
   relatedUser?: User
+}
+
+export interface CashTransfer {
+  _id: string
+  fromUser: User
+  toUser: User
+  amount: number
+  notes?: string
+  status: "pending" | "completed" | "rejected"
+  createdBy: User
+  createdAt: string
+  updatedAt: string
 }

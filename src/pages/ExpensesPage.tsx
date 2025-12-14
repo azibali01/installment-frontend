@@ -386,7 +386,7 @@ export const ExpensesPage: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-slate-900">{exp.category}</td>
                     <td className="px-6 py-4 text-amber-600 font-semibold">
-                      PKR {exp.amount.toLocaleString()}
+                      {formatCurrency(exp.amount)}
                     </td>
                     <td className="px-6 py-4 text-slate-900">
                       {new Date(exp.date).toLocaleDateString()}

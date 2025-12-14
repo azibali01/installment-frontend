@@ -1,12 +1,33 @@
 import axios from "axios";
 
-// Use explicit VITE_API_BASE_URL when provided; otherwise fall back to a
-// relative `/api` path so deployed builds call the same origin by default.
-// If your backend is hosted on a different origin, set `VITE_API_BASE_URL`
-// in your hosting environment to the backend URL (e.g. https://api.example.com/api).
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
+// Automatically detect environment:
+// - In development (npm run dev): use localhost backend via proxy (/api)
+// - In production: use VITE_API_BASE_URL if set, otherwise use /api (same origin)
+// - If VITE_API_BASE_URL is explicitly set, use it (for production deployments)
+const getApiBaseUrl = () => {
+  // If explicitly set, use it (for production)
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  
+  // In development mode, use /api which will be proxied to localhost:5000
+  if (import.meta.env.DEV) {
+    return "/api";
+  }
+  
+  // In production without explicit URL, use /api (same origin)
+  return "/api";
+};
 
-console.info("Using API base URL:", API_BASE_URL);
+const API_BASE_URL = getApiBaseUrl();
+
+// Debug: Always log API URL to help debug connection issues
+console.info("API Configuration:", {
+  VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
+  resolvedBaseURL: API_BASE_URL,
+  isDev: import.meta.env.DEV,
+  mode: import.meta.env.MODE
+});
 
 const client = axios.create({
   baseURL: API_BASE_URL,
@@ -14,6 +35,7 @@ const client = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  timeout: 30000, // 30 seconds timeout
 });
 
 let isRefreshing = false;
@@ -43,6 +65,17 @@ client.interceptors.response.use(
     if (!original) return Promise.reject(error);
 
     const status = error.response?.status;
+    
+    // Handle rate limiting (429) gracefully - don't retry, just show error
+    if (status === 429) {
+      // Return a user-friendly error that won't crash the app
+      const errorMessage = error.response?.data?.error || "Too many requests. Please wait a moment and try again.";
+      const rateLimitError = new Error(errorMessage);
+      (rateLimitError as any).response = error.response;
+      (rateLimitError as any).isAxiosError = true;
+      return Promise.reject(rateLimitError);
+    }
+    
     if (status === 401 && !original._retry) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {

@@ -25,6 +25,8 @@ import { ReportsPage } from "./pages/ReportsPage";
 import RolesPage from "./pages/RolesPage";
 import InstallmentsPage from "./pages/InstallmentsPage";
 import RequestsPage from "./pages/RequestsPage";
+import { CashManagementPage } from "./pages/CashManagementPage";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -48,10 +50,11 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
 
 export function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Layout>
-          <Routes>
+    <ErrorBoundary>
+      <AuthProvider>
+        <BrowserRouter>
+          <Layout>
+            <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route
               path="/dashboard"
@@ -142,6 +145,14 @@ export function App() {
               }
             />
             <Route
+              path="/cash"
+              element={
+                <ProtectedRoute>
+                  <CashManagementPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/reports"
               element={
                 <ProtectedRoute>
@@ -162,6 +173,7 @@ export function App() {
         </Layout>
       </BrowserRouter>
     </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

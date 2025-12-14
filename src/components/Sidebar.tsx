@@ -141,6 +141,16 @@ const RolesIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </IconWrapper>
 );
 
+const CashIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <IconWrapper {...props}>
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
+    />
+  </IconWrapper>
+);
+
 const LinkItemInner: React.FC<{
   to: string;
   icon?: React.ReactNode;
@@ -207,6 +217,9 @@ export const Sidebar: React.FC = () => {
         </LinkItemInner>
         <LinkItemInner to="/expenses" icon={<ExpenseIcon className="w-5 h-5" />} onClick={handleNav}>
           Expenses
+        </LinkItemInner>
+        <LinkItemInner to="/cash" icon={<CashIcon className="w-5 h-5" />} onClick={handleNav}>
+          Cash Management
         </LinkItemInner>
         <LinkItemInner to="/reports" icon={<ReportsIcon className="w-5 h-5" />} onClick={handleNav}>
           Reports

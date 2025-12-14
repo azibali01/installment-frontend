@@ -1,6 +1,7 @@
 import React from "react";
 import type { InstallmentPlan } from "../types";
 import { allocatePaymentToSchedule } from "../utils/finance";
+import { formatCurrency } from "../utils/format";
 
 interface Props {
   planId: string;
@@ -37,15 +38,14 @@ const PaymentPreview: React.FC<Props> = ({ planId, amount, installments }) => {
     <div>
       <div className="text-sm text-slate-600">Allocation</div>
       <div className="mt-2 text-sm">
-        <div>Principal: PKR {alloc.breakdown.principal.toLocaleString()}</div>
-        <div>Interest: PKR {alloc.breakdown.interest.toLocaleString()}</div>
+        <div>Principal: {formatCurrency(alloc.breakdown.principal)}</div>
+        <div>Interest: {formatCurrency(alloc.breakdown.interest)}</div>
         <div className="mt-2">
           Applied To:
           <ul className="list-disc ml-5">
             {alloc.appliedToMonths.map((a) => (
               <li key={`${a.month}-${a.applied}`}>
-                {a.month === -1 ? "Prepayment/credit" : `Month ${a.month}`}: PKR{" "}
-                {Number(a.applied).toLocaleString()}
+                {a.month === -1 ? "Prepayment/credit" : `Month ${a.month}`}: {formatCurrency(a.applied)}
               </li>
             ))}
           </ul>

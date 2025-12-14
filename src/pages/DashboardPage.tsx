@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import client from "../api/client";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
+import { formatCurrency } from "../utils/format";
 
 const IconWrapper = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
@@ -296,12 +297,11 @@ export const DashboardPage: React.FC = () => {
                     {it.customer?.name || "—"}
                   </div>
                   <div className="text-slate-900">
-                    PKR{" "}
-                    {(
+                    {formatCurrency(
                       it.installment?.remaining ||
                       it.installment?.amount ||
                       0
-                    ).toLocaleString()}
+                    )}
                   </div>
                 </div>
               ))}
@@ -347,19 +347,17 @@ export const DashboardPage: React.FC = () => {
                               {formatDate(it.installment?.dueDate)}
                             </td>
                             <td className="py-2">
-                              {(it.installment?.amount || 0).toLocaleString()}
+                              {formatCurrency(it.installment?.amount || 0)}
                             </td>
                             <td className="py-2">
-                              {(
-                                it.installment?.paidAmount || 0
-                              ).toLocaleString()}
+                              {formatCurrency(it.installment?.paidAmount || 0)}
                             </td>
                             <td className="py-2">
-                              {(
+                              {formatCurrency(
                                 it.installment?.remaining ||
                                 it.installment?.amount ||
                                 0
-                              ).toLocaleString()}
+                              )}
                             </td>
                             <td className="py-2">
                               {it.installment?.month ?? "—"}
@@ -418,12 +416,11 @@ export const DashboardPage: React.FC = () => {
                     {it.customer?.name || "—"}
                   </div>
                   <div className="text-slate-900">
-                    {formatDate(it.installment?.dueDate)} • PKR{" "}
-                    {(
+                    {formatDate(it.installment?.dueDate)} • {formatCurrency(
                       it.installment?.remaining ||
                       it.installment?.amount ||
                       0
-                    ).toLocaleString()}
+                    )}
                   </div>
                 </div>
               ))}
@@ -469,19 +466,17 @@ export const DashboardPage: React.FC = () => {
                               {formatDate(it.installment?.dueDate)}
                             </td>
                             <td className="py-2">
-                              {(it.installment?.amount || 0).toLocaleString()}
+                              {formatCurrency(it.installment?.amount || 0)}
                             </td>
                             <td className="py-2">
-                              {(
-                                it.installment?.paidAmount || 0
-                              ).toLocaleString()}
+                              {formatCurrency(it.installment?.paidAmount || 0)}
                             </td>
                             <td className="py-2">
-                              {(
+                              {formatCurrency(
                                 it.installment?.remaining ||
                                 it.installment?.amount ||
                                 0
-                              ).toLocaleString()}
+                              )}
                             </td>
                             <td className="py-2">
                               {it.installment?.month ?? "—"}
@@ -540,12 +535,11 @@ export const DashboardPage: React.FC = () => {
                     {it.customer?.name || "—"}
                   </div>
                   <div className="text-red-600">
-                    PKR{" "}
-                    {(
+                    {formatCurrency(
                       it.installment?.remaining ||
                       it.installment?.amount ||
                       0
-                    ).toLocaleString()}
+                    )}
                   </div>
                 </div>
               ))}
@@ -591,19 +585,17 @@ export const DashboardPage: React.FC = () => {
                               {formatDate(it.installment?.dueDate)}
                             </td>
                             <td className="py-2">
-                              {(it.installment?.amount || 0).toLocaleString()}
+                              {formatCurrency(it.installment?.amount || 0)}
                             </td>
                             <td className="py-2">
-                              {(
-                                it.installment?.paidAmount || 0
-                              ).toLocaleString()}
+                              {formatCurrency(it.installment?.paidAmount || 0)}
                             </td>
                             <td className="py-2">
-                              {(
+                              {formatCurrency(
                                 it.installment?.remaining ||
                                 it.installment?.amount ||
                                 0
-                              ).toLocaleString()}
+                              )}
                             </td>
                             <td className="py-2">
                               {it.installment?.month ?? "—"}
@@ -650,19 +642,19 @@ export const DashboardPage: React.FC = () => {
           <div className="card p-6">
             <p className="text-slate-700 text-sm font-medium">Total Cash In</p>
             <p className="text-3xl font-bold text-green-600 mt-2">
-              PKR {stats.totalCashIn.toLocaleString()}
+              {formatCurrency(stats.totalCashIn)}
             </p>
           </div>
           <div className="card p-6">
             <p className="text-slate-700 text-sm font-medium">Total Cash Out</p>
             <p className="text-3xl font-bold text-red-600 mt-2">
-              PKR {stats.totalCashOut.toLocaleString()}
+              {formatCurrency(stats.totalCashOut)}
             </p>
           </div>
           <div className="card p-6">
             <p className="text-slate-700 text-sm font-medium">Cash in Hand</p>
             <p className="text-3xl font-bold text-blue-600 mt-2">
-              PKR {stats.cashInHand.toLocaleString()}
+              {formatCurrency(stats.cashInHand)}
             </p>
           </div>
         </div>

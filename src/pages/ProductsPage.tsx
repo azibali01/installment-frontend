@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import client from "../api/client";
 import type { Product } from "../types";
 import { useAuth } from "../contexts/AuthContext";
+import { formatCurrency } from "../utils/format";
 
 export const ProductsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -162,7 +163,7 @@ export const ProductsPage: React.FC = () => {
                   {product.name}
                 </h3>
                 <p className="text-2xl font-bold text-blue-600 mb-4">
-                  PKR {product.price.toLocaleString()}
+                  {formatCurrency(product.price)}
                 </p>
                 <button
                   onClick={() => navigate(`/product/${product._id}`)}

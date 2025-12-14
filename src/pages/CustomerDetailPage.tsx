@@ -6,6 +6,8 @@ import client from "../api/client";
 import { useAuth } from "../contexts/AuthContext";
 import type { Customer } from "../types";
 import ConfirmModal from "../components/ConfirmModal";
+import { formatCNIC, cleanCNIC } from "../utils/cnic";
+import { formatPhone, cleanPhone } from "../utils/phone";
 
 export const CustomerDetailPage: React.FC = () => {
   const { id } = useParams();
@@ -37,8 +39,8 @@ export const CustomerDetailPage: React.FC = () => {
       setCustomer(data);
       setForm({
         name: data.name || "",
-        phone: data.phone || "",
-        cnic: data.cnic || "",
+        phone: cleanPhone(data.phone || ""),
+        cnic: cleanCNIC(data.cnic || ""),
         address: data.address || "",
         so: (data as any).so || "",
         cast: (data as any).cast || "",
@@ -97,6 +99,28 @@ export const CustomerDetailPage: React.FC = () => {
       <main className="w-full px-4 sm:px-6 lg:px-8 py-8">
         {error && <div className="text-red-600 mb-4">{error}</div>}
 
+        <div className="mb-4">
+          <button
+            onClick={() => navigate(`/installments?customerId=${id}`)}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition flex items-center gap-2"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+              />
+            </svg>
+            View Customer's Installments
+          </button>
+        </div>
+
         <div className="card p-6">
           <h2 className="text-xl font-semibold mb-4">Edit Customer</h2>
 
@@ -132,9 +156,13 @@ export const CustomerDetailPage: React.FC = () => {
                   CNIC
                 </label>
                 <input
-                  value={form.cnic}
-                  onChange={(e) => setForm({ ...form, cnic: e.target.value })}
-                  placeholder="CNIC"
+                  value={formatCNIC(form.cnic)}
+                  onChange={(e) => {
+                    const cleaned = cleanCNIC(e.target.value);
+                    setForm({ ...form, cnic: cleaned });
+                  }}
+                  placeholder="12345-1234567-1"
+                  maxLength={15}
                   className="px-4 py-2 border rounded w-full"
                   required
                 />
@@ -145,9 +173,13 @@ export const CustomerDetailPage: React.FC = () => {
                   Phone
                 </label>
                 <input
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  placeholder="Phone"
+                  value={formatPhone(form.phone)}
+                  onChange={(e) => {
+                    const cleaned = cleanPhone(e.target.value);
+                    setForm({ ...form, phone: cleaned });
+                  }}
+                  placeholder="0300-1234567"
+                  maxLength={13}
                   className="px-4 py-2 border rounded w-full"
                 />
               </div>

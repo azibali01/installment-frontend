@@ -4,6 +4,9 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import client from "../api/client";
 import { cleanCNIC, formatCNIC, isValidCNIC } from "../utils/cnic";
+import { formatPhone, cleanPhone } from "../utils/phone";
+import { validateGuarantors } from "../utils/validation";
+import { handleApiError, getContextualErrorMessage } from "../utils/errorHandler";
 import {
   amortizedMonthlyPayment,
   generateSchedule,
@@ -16,6 +19,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import ConfirmModal from "../components/ConfirmModal";
 import Pagination from "../components/Pagination";
+import { formatCurrency } from "../utils/format";
 
 const InstallmentDetailPage: React.FC = () => {
   const { id } = useParams();
@@ -35,6 +39,7 @@ const InstallmentDetailPage: React.FC = () => {
     startDate: new Date().toISOString().slice(0, 10),
     roundingPolicy: "nearest" as RoundingPolicy,
     interestModel: "equal" as InterestModel,
+    reference: "",
     bankCheque: {
       bankName: "",
       branch: "",
@@ -79,7 +84,8 @@ const InstallmentDetailPage: React.FC = () => {
         const res = await client.get(`/installments/${id}`);
         setPlan(res.data);
       } catch (err: any) {
-        setError(err?.response?.data?.error || "Failed to load installment");
+        const errorMessage = getContextualErrorMessage(err, "fetch");
+        setError(errorMessage);
       } finally {
         setIsLoading(false);
       }
@@ -140,8 +146,23 @@ const InstallmentDetailPage: React.FC = () => {
   if (error) {
     return (
       <div className="min-h-screen p-6">
-        <div className="bg-red-100 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
+        <div className="bg-red-50 border-l-4 border-red-500 text-red-800 px-4 py-3 rounded mb-6 flex items-start gap-3 shadow-sm">
+          <div className="flex-shrink-0 mt-0.5">
+            <svg className="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <p className="font-medium">Error</p>
+            <p className="text-sm mt-1">{error}</p>
+          </div>
+          <button 
+            onClick={() => setError("")} 
+            className="flex-shrink-0 text-red-600 hover:text-red-800 transition"
+            aria-label="Close error"
+          >
+            ✕
+          </button>
         </div>
         {showForm && (
           <div className="card p-6 mt-6">
@@ -328,6 +349,28 @@ const InstallmentDetailPage: React.FC = () => {
                 </div>
                 <div>
                   <label
+                    htmlFor="reference"
+                    className="block text-sm text-slate-700 mb-1"
+                  >
+                    Reference (Optional)
+                  </label>
+                  <input
+                    id="reference"
+                    type="text"
+                    placeholder="e.g. Customer name, Phone number, etc."
+                    value={formData.reference}
+                    onChange={(e) =>
+                      setFormData({ ...formData, reference: e.target.value })
+                    }
+                    className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 w-full"
+                    maxLength={200}
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Reference se aane wali installment ke liye - Agar reference hai toh guarantors ki zarurat nahi
+                  </p>
+                </div>
+                <div>
+                  <label
                     htmlFor="roundingPolicy"
                     className="block text-sm text-slate-700 mb-1"
                   >
@@ -384,7 +427,7 @@ const InstallmentDetailPage: React.FC = () => {
                         Month {s.month} •{" "}
                         {new Date(s.dueDate).toLocaleDateString()}
                       </div>
-                      <div>PKR {Number(s.amount).toLocaleString()}</div>
+                      <div>{formatCurrency(s.amount)}</div>
                     </div>
                   ))}
                   {preview.schedule.length === 0 && (
@@ -454,6 +497,7 @@ const InstallmentDetailPage: React.FC = () => {
         (plan as any).startDate || new Date().toISOString().slice(0, 10),
       roundingPolicy: (plan as any).roundingPolicy || "nearest",
       interestModel: (plan as any).interestModel || "amortized",
+      reference: (plan as any).reference || "",
       bankCheque: {
         bankName: plan.bankCheque?.bankName || "",
         branch: plan.bankCheque?.branch || "",
@@ -486,12 +530,14 @@ const InstallmentDetailPage: React.FC = () => {
   async function handleSubmitEdit(e: React.FormEvent) {
     e.preventDefault();
     try {
-      // validate guarantor CNICs if provided
-      for (const g of formData.guarantors) {
-        if (String(g.cnic || "").trim() && !isValidCNIC(String(g.cnic || ""))) {
-          showToast("Each guarantor CNIC must be 13 digits", "error");
-          return;
-        }
+      // Use shared validation utility
+      const validation = validateGuarantors(
+        formData.guarantors,
+        !!(formData.reference && formData.reference.trim())
+      );
+      if (!validation.isValid) {
+        showToast(validation.error || "Validation failed", "error");
+        return;
       }
 
       const payload: any = {
@@ -501,17 +547,25 @@ const InstallmentDetailPage: React.FC = () => {
         numberOfMonths: Number(formData.numberOfMonths),
         startDate: formData.startDate,
         roundingPolicy: formData.roundingPolicy,
+        reference: formData.reference || undefined,
       };
 
       // include cheque + guarantors for privileged edits
       payload.bankCheque = { ...formData.bankCheque };
-      payload.guarantors = formData.guarantors.map((g: any) => ({
-        name: g.name,
-        relation: g.relation,
-        phone: g.phone,
-        cnic: String(g.cnic || ""),
-        address: g.address || undefined,
-      }));
+      // If reference is provided, send only guarantors with CNIC, otherwise send all
+      const guarantorsToSend = formData.reference && formData.reference.trim() 
+        ? formData.guarantors.filter((g: any) => g.cnic && String(g.cnic).trim()) // Only send if CNIC provided
+        : formData.guarantors; // If no reference, send all (validation ensures at least one has CNIC)
+      
+      payload.guarantors = guarantorsToSend.length > 0 
+        ? guarantorsToSend.map((g: any) => ({
+            name: g.name,
+            relation: g.relation,
+            phone: g.phone,
+            cnic: String(g.cnic || ""),
+            address: g.address || undefined,
+          }))
+        : undefined;
 
       // attach the preview schedule (server should still validate/recalc)
       payload.installmentSchedule = preview.schedule;
@@ -581,7 +635,8 @@ const InstallmentDetailPage: React.FC = () => {
         showToast("Edit request submitted", "success");
       }
     } catch (err: any) {
-      showToast(err?.response?.data?.error || "Failed to submit", "error");
+      const errorMessage = getContextualErrorMessage(err, "update");
+      showToast(errorMessage, "error");
     }
   }
 
@@ -601,7 +656,7 @@ const InstallmentDetailPage: React.FC = () => {
       }
     } catch (err: any) {
       showToast(
-        err?.response?.data?.error || "Failed to delete/request",
+        getContextualErrorMessage(err, "delete"),
         "error"
       );
     }
@@ -632,7 +687,8 @@ const InstallmentDetailPage: React.FC = () => {
       // refresh contact logs after logging
       await fetchContactLogs();
     } catch (err: any) {
-      showToast(err?.response?.data?.error || "Failed to log contact", "error");
+      const errorMessage = getContextualErrorMessage(err, "create");
+      showToast(errorMessage, "error");
     } finally {
       setLogLoading(false);
     }
@@ -669,7 +725,17 @@ const InstallmentDetailPage: React.FC = () => {
             </button>
             <h1 className="text-2xl font-bold">Installment Details</h1>
             <div className="text-sm text-slate-500">
+              {(plan as any).installmentId && (
+                <div className="text-slate-600 text-xs mb-1 font-mono">
+                  ID: {(plan as any).installmentId}
+                </div>
+              )}
               {customerName} • {productName}
+              {(plan as any).reference && (
+                <div className="text-blue-600 text-sm mt-1">
+                  📌 Reference: {(plan as any).reference}
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -716,20 +782,20 @@ const InstallmentDetailPage: React.FC = () => {
             <div>
               <p className="text-slate-600 text-xs">Total Amount</p>
               <p className="text-slate-900 font-semibold">
-                PKR {Number(plan.totalAmount || 0).toLocaleString()}
+                {formatCurrency(plan.totalAmount || 0)}
               </p>
             </div>
             <div>
               <p className="text-slate-600 text-xs">Down Payment</p>
               <p className="text-slate-900 font-semibold">
-                PKR {Number(plan.downPayment || 0).toLocaleString()}
+                {formatCurrency(plan.downPayment || 0)}
               </p>
             </div>
             <div>
               <p className="text-slate-600 text-xs">Monthly</p>
               <p className="text-slate-900 font-semibold">
                 {plan.monthlyInstallment
-                  ? Math.round(plan.monthlyInstallment).toLocaleString()
+                  ? formatCurrency(Math.round(plan.monthlyInstallment))
                   : "—"}
               </p>
             </div>
@@ -740,6 +806,14 @@ const InstallmentDetailPage: React.FC = () => {
               </p>
             </div>
           </div>
+
+          {(plan as any).reference && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+              <p className="text-blue-800 text-sm font-medium">
+                📌 Reference: {(plan as any).reference}
+              </p>
+            </div>
+          )}
 
           {(plan.bankCheque ||
             (plan.guarantors && plan.guarantors.length > 0)) && (
@@ -780,7 +854,7 @@ const InstallmentDetailPage: React.FC = () => {
                           Relation: {g.relation || "-"}
                         </div>
                         <div className="text-sm text-slate-600">
-                          Phone: {g.phone || "-"}
+                          Phone: {formatPhone(g.phone || "") || "-"}
                         </div>
                         <div className="text-sm text-slate-600">
                           CNIC:{" "}
@@ -815,7 +889,7 @@ const InstallmentDetailPage: React.FC = () => {
                   <div className="text-right flex items-center gap-3">
                     <div>
                       <div className="font-semibold">
-                        PKR {Number(sch.amount || 0).toLocaleString()}
+                        {formatCurrency(sch.amount || 0)}
                       </div>
                       <div className="text-sm text-slate-500">{sch.status}</div>
                     </div>
@@ -1121,7 +1195,9 @@ const InstallmentDetailPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <h4 className="font-semibold">Guarantors</h4>
+                  <h4 className="font-semibold">
+                    Guarantors {formData.reference && formData.reference.trim() ? "(Optional - Reference provided)" : "(Required - No reference)"}
+                  </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
                     {formData.guarantors.map((g: any, idx: number) => (
                       <div key={idx} className="p-3 border rounded">
@@ -1152,13 +1228,15 @@ const InstallmentDetailPage: React.FC = () => {
                         />
                         <input
                           type="tel"
-                          placeholder="Phone"
-                          value={g.phone}
+                          placeholder="0300-1234567"
+                          value={formatPhone(g.phone || "")}
                           onChange={(e) => {
+                            const cleaned = cleanPhone(e.target.value);
                             const next = [...formData.guarantors];
-                            next[idx] = { ...next[idx], phone: e.target.value };
+                            next[idx] = { ...next[idx], phone: cleaned };
                             setFormData({ ...formData, guarantors: next });
                           }}
+                          maxLength={13}
                           className="px-3 py-2 border rounded w-full mb-2"
                         />
                         <div className="mb-2">
@@ -1212,7 +1290,7 @@ const InstallmentDetailPage: React.FC = () => {
                           Month {s.month} •{" "}
                           {new Date(s.dueDate).toLocaleDateString()}
                         </div>
-                        <div>PKR {Number(s.amount).toLocaleString()}</div>
+                        <div>{formatCurrency(s.amount)}</div>
                       </div>
                     ))}
                     {preview.schedule.length === 0 && (

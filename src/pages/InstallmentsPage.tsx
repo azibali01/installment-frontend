@@ -1,9 +1,13 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import client from "../api/client";
 import { cleanCNIC, formatCNIC, isValidCNIC } from "../utils/cnic";
+import { formatPhone, cleanPhone } from "../utils/phone";
+import { validateGuarantors } from "../utils/validation";
+import { formatCurrency } from "../utils/format";
+import { handleApiError, getContextualErrorMessage } from "../utils/errorHandler";
 import {
   amortizedMonthlyPayment,
   generateSchedule,
@@ -17,9 +21,11 @@ import ConfirmModal from "../components/ConfirmModal";
 import { useToast } from "../contexts/ToastContext";
 const InstallmentsPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, hasPermission } = useAuth();
 
   const [installments, setInstallments] = useState<InstallmentPlan[]>([]);
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
 
@@ -48,6 +54,7 @@ const InstallmentsPage: React.FC = () => {
   const [editingIsRequest, setEditingIsRequest] = useState<boolean>(false);
 
   const [formData, setFormData] = useState({
+    installmentId: "",
     customerId: "",
     productId: "",
     markupPercent: "40",
@@ -58,6 +65,7 @@ const InstallmentsPage: React.FC = () => {
     startDate: new Date().toISOString().slice(0, 10),
     roundingPolicy: "nearest" as RoundingPolicy,
     interestModel: "equal" as InterestModel,
+    reference: "",
     bankCheque: {
       bankName: "",
       branch: "",
@@ -119,24 +127,70 @@ const InstallmentsPage: React.FC = () => {
     };
   }, [formData, products]);
 
+  // Load customers and products only once on mount
   useEffect(() => {
-    void load(1, limit);
+    const loadCustomersAndProducts = async () => {
+      try {
+        const [custRes, prodRes] = await Promise.all([
+          client.get("/customers"),
+          client.get("/products"),
+        ]);
+        setCustomers(custRes.data || []);
+        setProducts(prodRes.data || []);
+      } catch (err) {
+        console.error("Failed to load customers/products:", err);
+      }
+    };
+    void loadCustomersAndProducts();
   }, []);
 
-  async function load(p = page, l = limit) {
+  useEffect(() => {
+    // Read customerId from URL query params
+    const customerIdFromUrl = searchParams.get("customerId");
+    if (customerIdFromUrl) {
+      setFilterCustomerId(customerIdFromUrl);
+      // Load with the customer filter
+      void load(1, limit, customerIdFromUrl);
+    } else {
+      void load(1, limit);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reload when search query, filter, or page changes (with debounce)
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      void load(page, limit);
+    }, 500); // Increased debounce to 500ms
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, filterStatus, filterCustomerId, page, limit]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // AbortController for request cancellation
+  const abortControllerRef = React.useRef<AbortController | null>(null);
+
+  async function load(p = page, l = limit, customerIdOverride?: string) {
+    // Cancel previous request if still pending
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Create new AbortController for this request
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     setPageLoading(true);
     try {
       const params = new URLSearchParams();
       params.set("page", String(p));
       params.set("limit", String(l));
-      if (filterCustomerId) params.set("customerId", filterCustomerId);
+      const customerIdToUse = customerIdOverride || filterCustomerId;
+      if (customerIdToUse) params.set("customerId", customerIdToUse);
       if (filterStatus) params.set("status", filterStatus);
+      if (searchQuery.trim()) params.set("search", searchQuery.trim());
 
-      const [instRes, custRes, prodRes] = await Promise.all([
-        client.get(`/installments?${params.toString()}`),
-        client.get("/customers"),
-        client.get("/products"),
-      ]);
+      // Only fetch installments, customers/products are already loaded
+      const instRes = await client.get(`/installments?${params.toString()}`, {
+        signal: abortController.signal,
+      });
 
       const instData = Array.isArray(instRes.data)
         ? {
@@ -153,15 +207,39 @@ const InstallmentsPage: React.FC = () => {
             meta: { total: 0, page: p, limit: l, totalPages: 1 },
           };
 
+      // Server-side search is now handled on backend
       setInstallments(instData.data || []);
       setTotalItems(instData.meta?.total || 0);
       setTotalPages(instData.meta?.totalPages || 1);
       setPage(instData.meta?.page || p);
-
-      setCustomers(custRes.data || []);
-      setProducts(prodRes.data || []);
-    } catch (e) {
-      setError("Failed to fetch data");
+    } catch (e: any) {
+      // Don't show error if request was cancelled
+      if (e.name === "CanceledError" || e.name === "AbortError" || e.code === "ERR_CANCELED") {
+        return;
+      }
+      
+      // Handle rate limiting gracefully - show error but don't crash
+      const status = e?.response?.status;
+      if (status === 429) {
+        const errorMessage = e?.response?.data?.error || "Too many requests. Please wait a moment and try again.";
+        setError(errorMessage);
+        // Don't clear installments on rate limit - keep showing previous data
+        return;
+      }
+      
+      // For other errors, show error message
+      try {
+        const errorMessage = getContextualErrorMessage(e, "fetch");
+        setError(errorMessage);
+        // Only clear installments on actual errors, not rate limits
+        if (status !== 429) {
+          setInstallments([]);
+        }
+      } catch (err) {
+        // Fallback if error handling itself fails
+        console.error("Error handling failed:", err);
+        setError("An error occurred. Please try again.");
+      }
     } finally {
       setIsLoading(false);
       setPageLoading(false);
@@ -171,11 +249,14 @@ const InstallmentsPage: React.FC = () => {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     try {
-      for (const g of formData.guarantors) {
-        if (!isValidCNIC(g.cnic)) {
-          setError("Each guarantor CNIC must be 13 digits");
-          return;
-        }
+      // Use shared validation utility
+      const validation = validateGuarantors(
+        formData.guarantors,
+        !!(formData.reference && formData.reference.trim())
+      );
+      if (!validation.isValid) {
+        setError(validation.error || "Validation failed");
+        return;
       }
       setError("");
       const product = products.find((x) => x._id === formData.productId);
@@ -246,7 +327,13 @@ const InstallmentsPage: React.FC = () => {
         setEditingIsRequest(false);
         setShowForm(false);
       } else {
+        // If reference is provided, send empty guarantors array or only filled ones
+        const guarantorsToSend = formData.reference && formData.reference.trim() 
+          ? formData.guarantors.filter((g: any) => g.cnic && g.cnic.trim()) // Only send if CNIC provided
+          : formData.guarantors; // If no reference, send all (validation ensures at least one has CNIC)
+
         await client.post("/installments", {
+          installmentId: formData.installmentId && formData.installmentId.trim() ? formData.installmentId.trim() : undefined,
           customerId: formData.customerId,
           productId: formData.productId,
           markupPercent: Number((formData as any).markupPercent) || 40,
@@ -254,12 +341,15 @@ const InstallmentsPage: React.FC = () => {
           downPayment: Number(formData.downPayment),
           numberOfMonths: Number(formData.numberOfMonths),
           bankCheque: formData.bankCheque,
-          guarantors: formData.guarantors,
+          guarantors: guarantorsToSend.length > 0 ? guarantorsToSend : undefined,
           startDate: formData.startDate,
           roundingPolicy: formData.roundingPolicy,
+          interestModel: formData.interestModel,
           installmentSchedule: preview.schedule,
+          reference: formData.reference && formData.reference.trim() ? formData.reference.trim() : undefined,
         });
         setFormData({
+          installmentId: "",
           customerId: "",
           productId: "",
           markupPercent: "40",
@@ -270,6 +360,7 @@ const InstallmentsPage: React.FC = () => {
           startDate: new Date().toISOString().slice(0, 10),
           roundingPolicy: "nearest",
           interestModel: "equal",
+          reference: "",
           bankCheque: {
             bankName: "",
             branch: "",
@@ -285,15 +376,8 @@ const InstallmentsPage: React.FC = () => {
         await load(1, limit);
       }
     } catch (err: any) {
-      // Prefer server-provided validation messages when available
-      const resp = err?.response?.data
-      if (resp) {
-        if (resp.message) setError(String(resp.message))
-        else if (Array.isArray(resp.errors) && resp.errors.length) setError(String(resp.errors[0].msg || resp.errors[0].message || 'Validation error'))
-        else setError(String(resp.error || resp.message || JSON.stringify(resp)))
-      } else {
-        setError(String(err) || "Failed to create")
-      }
+      const errorMessage = getContextualErrorMessage(err, editingId ? "update" : "create");
+      setError(errorMessage);
     }
   }
 
@@ -336,29 +420,31 @@ const InstallmentsPage: React.FC = () => {
                   setEditingId(null);
                   setSelectedPlan(null);
                   setEditingIsRequest(false);
-                  setFormData({
-                    customerId: "",
-                    productId: "",
-                    markupPercent: "40",
-                    markupAmount: "",
-                    downPayment: "",
-                    downPercent: "10",
-                    numberOfMonths: "",
-                    startDate: new Date().toISOString().slice(0, 10),
-                    roundingPolicy: "nearest",
-                    interestModel: "equal",
-                    bankCheque: {
-                      bankName: "",
-                      branch: "",
-                      accountNumber: "",
-                      chequeNumber: "",
-                    },
-                    guarantors: [
-                      { name: "", relation: "", phone: "", cnic: "", address: "" },
-                      { name: "", relation: "", phone: "", cnic: "", address: "" },
-                    ],
-                  });
-                  setShowForm(false);
+        setFormData({
+          installmentId: "",
+          customerId: "",
+          productId: "",
+          markupPercent: "40",
+          markupAmount: "",
+          downPayment: "",
+          downPercent: "10",
+          numberOfMonths: "",
+          startDate: new Date().toISOString().slice(0, 10),
+          roundingPolicy: "nearest",
+          interestModel: "equal",
+          reference: "",
+          bankCheque: {
+            bankName: "",
+            branch: "",
+            accountNumber: "",
+            chequeNumber: "",
+          },
+          guarantors: [
+            { name: "", relation: "", phone: "", cnic: "", address: "" },
+            { name: "", relation: "", phone: "", cnic: "", address: "" },
+          ],
+        });
+        setShowForm(false);
                 } else {
                   setShowForm(true);
                 }
@@ -373,9 +459,21 @@ const InstallmentsPage: React.FC = () => {
 
       <main className="w-full px-4 sm:px-6 lg:px-8 py-8">
         {error && (
-          <div className="bg-red-100 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
-            {error}
-            <button onClick={() => setError("")} className="float-right">
+          <div className="bg-red-50 border-l-4 border-red-500 text-red-800 px-4 py-3 rounded mb-6 flex items-start gap-3 shadow-sm">
+            <div className="flex-shrink-0 mt-0.5">
+              <svg className="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="font-medium">Error</p>
+              <p className="text-sm mt-1">{error}</p>
+            </div>
+            <button 
+              onClick={() => setError("")} 
+              className="flex-shrink-0 text-red-600 hover:text-red-800 transition"
+              aria-label="Close error"
+            >
               ✕
             </button>
           </div>
@@ -392,6 +490,27 @@ const InstallmentsPage: React.FC = () => {
             </h2>
             <form onSubmit={handleCreate} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label
+                    htmlFor="installmentId"
+                    className="block text-sm text-slate-700 mb-1"
+                  >
+                    Installment ID (Khata No.)
+                  </label>
+                  <input
+                    id="installmentId"
+                    type="text"
+                    placeholder="e.g. INST-001, 123, etc. (Leave empty for auto)"
+                    value={formData.installmentId}
+                    onChange={(e) =>
+                      setFormData({ ...formData, installmentId: e.target.value })
+                    }
+                    className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 w-full"
+                    maxLength={50}
+                  />
+                 
+                </div>
+
                 <div>
                   <label
                     htmlFor="customerId"
@@ -454,7 +573,7 @@ const InstallmentsPage: React.FC = () => {
                     <option value="">Select Product</option>
                     {products.map((p) => (
                       <option key={p._id} value={p._id}>
-                        {p.name} - PKR {p.price}
+                        {p.name} - {formatCurrency(p.price)}
                       </option>
                     ))}
                   </select>
@@ -647,6 +766,28 @@ const InstallmentsPage: React.FC = () => {
                 </div>
                 <div>
                   <label
+                    htmlFor="reference"
+                    className="block text-sm text-slate-700 mb-1"
+                  >
+                    Reference (Optional)
+                  </label>
+                  <input
+                    id="reference"
+                    type="text"
+                    placeholder="e.g. Customer name, Phone number, etc."
+                    value={formData.reference}
+                    onChange={(e) =>
+                      setFormData({ ...formData, reference: e.target.value })
+                    }
+                    className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 w-full"
+                    maxLength={200}
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                  If reference is provided, guarantors and bank details will be hidden
+                  </p>
+                </div>
+                <div>
+                  <label
                     htmlFor="roundingPolicy"
                     className="block text-sm text-slate-700 mb-1"
                   >
@@ -668,107 +809,114 @@ const InstallmentsPage: React.FC = () => {
                     <option value="down">Down</option>
                   </select>
                 </div>
-                <div>
-                  <label
-                    htmlFor="bankName"
-                    className="block text-sm text-slate-700 mb-1"
-                  >
-                    Bank Name
-                  </label>
-                  <input
-                    id="bankName"
-                    type="text"
-                    placeholder="Bank Name"
-                    value={formData.bankCheque.bankName}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        bankCheque: {
-                          ...formData.bankCheque,
-                          bankName: e.target.value,
-                        },
-                      })
-                    }
-                    className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 w-full"
-                    
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="accountNumber"
-                    className="block text-sm text-slate-700 mb-1"
-                  >
-                    Account Number
-                  </label>
-                  <input
-                    id="accountNumber"
-                    type="text"
-                    placeholder="Account Number"
-                    value={formData.bankCheque.accountNumber}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        bankCheque: {
-                          ...formData.bankCheque,
-                          accountNumber: e.target.value,
-                        },
-                      })
-                    }
-                    className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 w-full"
-                    
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="branch"
-                    className="block text-sm text-slate-700 mb-1"
-                  >
-                    Branch
-                  </label>
-                  <input
-                    id="branch"
-                    type="text"
-                    placeholder="Branch"
-                    value={formData.bankCheque.branch}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        bankCheque: {
-                          ...formData.bankCheque,
-                          branch: e.target.value,
-                        },
-                      })
-                    }
-                    className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 w-full"
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="chequeNumber"
-                    className="block text-sm text-slate-700 mb-1"
-                  >
-                    Cheque Number
-                  </label>
-                  <input
-                    id="chequeNumber"
-                    type="text"
-                    placeholder="Cheque Number"
-                    value={formData.bankCheque.chequeNumber}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        bankCheque: {
-                          ...formData.bankCheque,
-                          chequeNumber: e.target.value,
-                        },
-                      })
-                    }
-                    className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 w-full"
-                  />
-                </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {formData.guarantors.map((g, idx) => (
+              
+              {/* Bank Details - Hide if reference is provided */}
+              {!formData.reference || !formData.reference.trim() ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <label
+                      htmlFor="bankName"
+                      className="block text-sm text-slate-700 mb-1"
+                    >
+                      Bank Name
+                    </label>
+                    <input
+                      id="bankName"
+                      type="text"
+                      placeholder="Bank Name"
+                      value={formData.bankCheque.bankName}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          bankCheque: {
+                            ...formData.bankCheque,
+                            bankName: e.target.value,
+                          },
+                        })
+                      }
+                      className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 w-full"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="accountNumber"
+                      className="block text-sm text-slate-700 mb-1"
+                    >
+                      Account Number
+                    </label>
+                    <input
+                      id="accountNumber"
+                      type="text"
+                      placeholder="Account Number"
+                      value={formData.bankCheque.accountNumber}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          bankCheque: {
+                            ...formData.bankCheque,
+                            accountNumber: e.target.value,
+                          },
+                        })
+                      }
+                      className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 w-full"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="branch"
+                      className="block text-sm text-slate-700 mb-1"
+                    >
+                      Branch
+                    </label>
+                    <input
+                      id="branch"
+                      type="text"
+                      placeholder="Branch"
+                      value={formData.bankCheque.branch}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          bankCheque: {
+                            ...formData.bankCheque,
+                            branch: e.target.value,
+                          },
+                        })
+                      }
+                      className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 w-full"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="chequeNumber"
+                      className="block text-sm text-slate-700 mb-1"
+                    >
+                      Cheque Number
+                    </label>
+                    <input
+                      id="chequeNumber"
+                      type="text"
+                      placeholder="Cheque Number"
+                      value={formData.bankCheque.chequeNumber}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          bankCheque: {
+                            ...formData.bankCheque,
+                            chequeNumber: e.target.value,
+                          },
+                        })
+                      }
+                      className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 w-full"
+                    />
+                  </div>
+                </div>
+              ) : null}
+              
+              {/* Guarantors Section - Hide if reference is provided */}
+              {!formData.reference || !formData.reference.trim() ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  {formData.guarantors.map((g, idx) => (
                   <div key={idx} className="p-3 border rounded">
                     <div className="text-sm font-semibold mb-2">
                       Guarantor {idx + 1}
@@ -827,13 +975,15 @@ const InstallmentsPage: React.FC = () => {
                       <input
                         id={`guar-phone-${idx}`}
                         type="tel"
-                        placeholder="Phone"
-                        value={g.phone}
+                        placeholder="0300-1234567"
+                        value={formatPhone(g.phone || "")}
                         onChange={(e) => {
+                          const cleaned = cleanPhone(e.target.value);
                           const next = [...formData.guarantors];
-                          next[idx] = { ...next[idx], phone: e.target.value };
+                          next[idx] = { ...next[idx], phone: cleaned };
                           setFormData({ ...formData, guarantors: next });
                         }}
+                        maxLength={13}
                         className="px-3 py-2 bg-white border border-gray-300 rounded w-full"
                       />
                     </div>
@@ -881,20 +1031,21 @@ const InstallmentsPage: React.FC = () => {
                     </div>
                   </div>
                 ))}
-              </div>
+                </div>
+              ) : null}
               <div className="mb-4 p-3 border rounded bg-white">
                 <div className="text-sm text-slate-600">Preview</div>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <div>
                     <div className="text-xs text-slate-500">Principal</div>
                     <div className="font-semibold">
-                      PKR {preview.principal.toLocaleString()}
+                      {formatCurrency(preview.principal)}
                     </div>
                   </div>
                   <div>
                     <div className="text-xs text-slate-500">Monthly</div>
                     <div className="font-semibold">
-                      PKR {Math.round(preview.monthly).toLocaleString()}
+                      {formatCurrency(Math.round(preview.monthly))}
                     </div>
                   </div>
                 </div>
@@ -911,7 +1062,7 @@ const InstallmentsPage: React.FC = () => {
                           Month {s.month} •{" "}
                           {new Date(s.dueDate).toLocaleDateString()}
                         </div>
-                        <div>PKR {Number(s.amount).toLocaleString()}</div>
+                        <div>{formatCurrency(s.amount)}</div>
                       </div>
                     ))}
                     {preview.schedule.length === 0 && (
@@ -936,6 +1087,46 @@ const InstallmentsPage: React.FC = () => {
         )}
 
         <div className="space-y-4">
+          <div className="mb-4">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search by customer name, product, reference, or ID..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full px-4 py-2 pl-10 pr-10 bg-white border border-gray-300 rounded text-slate-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-300"
+              />
+              <svg
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setPage(1);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="mb-4 flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
               <label className="text-sm text-slate-600">Customer</label>
@@ -1006,6 +1197,11 @@ const InstallmentsPage: React.FC = () => {
               <div key={plan._id} className="card p-6">
                 <div className="flex justify-between items-start mb-4">
                   <div>
+                    {(plan as any).installmentId && (
+                      <p className="text-slate-500 text-xs mb-1 font-mono">
+                        ID: {(plan as any).installmentId}
+                      </p>
+                    )}
                     <h3 className="text-lg font-semibold text-slate-900">
                       {typeof plan.customerId === "string"
                         ? plan.customerId
@@ -1026,6 +1222,11 @@ const InstallmentsPage: React.FC = () => {
                         ? plan.productId
                         : plan.productId?.name || "—"}
                     </p>
+                    {(plan as any).reference && (
+                      <p className="text-blue-600 text-sm mt-1">
+                        📌 Reference: {(plan as any).reference}
+                      </p>
+                    )}
                   </div>
                   <span
                     className={`px-3 py-1 rounded text-sm font-medium capitalize ${getStatusColor(
@@ -1040,28 +1241,27 @@ const InstallmentsPage: React.FC = () => {
                   <div>
                     <p className="text-slate-600 text-xs">Total Amount</p>
                     <p className="text-slate-900 font-semibold">
-                      PKR {Number(plan.totalAmount || 0).toLocaleString()}
+                      {formatCurrency(plan.totalAmount || 0)}
                     </p>
                   </div>
                   <div>
                     <p className="text-slate-600 text-xs">Down Payment</p>
                     <p className="text-slate-900 font-semibold">
-                      PKR {Number(plan.downPayment || 0).toLocaleString()}
+                      {formatCurrency(plan.downPayment || 0)}
                     </p>
                   </div>
                   <div>
                     <p className="text-slate-600 text-xs">Monthly</p>
                     <p className="text-slate-900 font-semibold">
-                      PKR{" "}
                       {plan.monthlyInstallment
-                        ? Math.round(plan.monthlyInstallment).toLocaleString()
+                        ? formatCurrency(Math.round(plan.monthlyInstallment))
                         : "—"}
                     </p>
                   </div>
                   <div>
                     <p className="text-slate-600 text-xs">Remaining</p>
                     <p className="text-blue-600 font-semibold">
-                      PKR {Number(plan.remainingBalance || 0).toLocaleString()}
+                      {formatCurrency(plan.remainingBalance || 0)}
                     </p>
                   </div>
                 </div>
@@ -1086,6 +1286,7 @@ const InstallmentsPage: React.FC = () => {
                               ? plan.productId
                               : plan.productId?._id || "";
                           setFormData({
+                            installmentId: (plan as any).installmentId || "",
                             customerId: custId,
                             productId: prodId,
                             downPayment: String(plan.downPayment || ""),
@@ -1099,6 +1300,7 @@ const InstallmentsPage: React.FC = () => {
                               (plan as any).roundingPolicy || "nearest",
                             interestModel:
                               (plan as any).interestModel || "amortized",
+                            reference: (plan as any).reference || "",
                             markupPercent: String(
                               (plan as any).markupPercent || 40
                             ),
@@ -1179,6 +1381,7 @@ const InstallmentsPage: React.FC = () => {
                               ? plan.productId
                               : plan.productId?._id || "";
                           setFormData({
+                            installmentId: (plan as any).installmentId || "",
                             customerId: custId,
                             productId: prodId,
                             downPayment: String(plan.downPayment || ""),
@@ -1192,6 +1395,7 @@ const InstallmentsPage: React.FC = () => {
                               (plan as any).roundingPolicy || "nearest",
                             interestModel:
                               (plan as any).interestModel || "amortized",
+                            reference: (plan as any).reference || "",
                             markupPercent: String(
                               (plan as any).markupPercent || 40
                             ),
@@ -1264,11 +1468,8 @@ const InstallmentsPage: React.FC = () => {
                             });
                             showToast("Delete request submitted", "success");
                           } catch (err: any) {
-                            showToast(
-                              err?.response?.data?.error ||
-                                "Failed to request delete",
-                              "error"
-                            );
+                            const errorMessage = handleApiError(err, "Failed to request delete");
+                            showToast(errorMessage, "error");
                           } finally {
                             setRequestLoading(false);
                           }
@@ -1369,9 +1570,8 @@ const InstallmentsPage: React.FC = () => {
             await client.delete(`/installments/${id}`);
             await load(page, limit);
           } catch (err: any) {
-            setError(
-              err?.response?.data?.error || "Failed to delete installment"
-            );
+            const errorMessage = getContextualErrorMessage(err, "delete");
+            setError(errorMessage);
           }
         }}
         onCancel={() => setShowDeleteConfirm(null)}

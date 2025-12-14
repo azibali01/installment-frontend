@@ -9,6 +9,7 @@ import PaymentPreview from "../components/PaymentPreview";
 import Pagination from "../components/Pagination";
 import EditPaymentModal from "../components/EditPaymentModal";
 import ConfirmModal from "../components/ConfirmModal";
+import { formatCurrency } from "../utils/format";
 import type { Payment, InstallmentPlan } from "../types";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -53,7 +54,7 @@ export const PaymentsPage: React.FC = () => {
 
       const [pay, inst, cust] = await Promise.all([
         client.get("/payments", { params: payParams }),
-        client.get("/installments"),
+        client.get("/installments", { params: { includeSchedule: true, status: "approved" } }),
         client.get("/customers"),
       ]);
 
@@ -70,7 +71,8 @@ export const PaymentsPage: React.FC = () => {
       const instList = Array.isArray(inst.data)
         ? inst.data
         : inst.data?.data || [];
-      setInstallments(instList.filter((i: any) => i.status === "approved"));
+      // Already filtered by status=approved in API call, but ensure schedule exists
+      setInstallments(instList.filter((i: any) => i.status === "approved" && i.installmentSchedule));
       setCustomers(cust.data || []);
     } catch (err) {
       setError("Failed to fetch data");
@@ -146,6 +148,7 @@ export const PaymentsPage: React.FC = () => {
   };
 
   const canRecord = ["admin", "manager", "employee"].includes(user?.role || "");
+  const canEditDelete = user?.role === "admin" || user?.role === "manager"; // Only admin/manager can edit/delete directly
 
   const sortedInstallments = [...installments].sort((a, b) => {
     const ai = a as any;
@@ -300,9 +303,7 @@ export const PaymentsPage: React.FC = () => {
                           : "";
                         return (
                           <option key={s.month} value={String(s.month)}>
-                            {`Month ${s.month} — ${due} — PKR ${Number(
-                              remaining
-                            ).toLocaleString()}`}
+                            {`Month ${s.month} — ${due} — ${formatCurrency(remaining)}`}
                           </option>
                         );
                       });
@@ -481,7 +482,7 @@ export const PaymentsPage: React.FC = () => {
                         {monthLabel}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-700">
-                        PKR {Number(amount).toLocaleString()}
+                        {formatCurrency(amount)}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-700">
                         {date}
@@ -492,27 +493,76 @@ export const PaymentsPage: React.FC = () => {
                       <td className="px-6 py-4 text-right">
                         {canRecord && (
                           <div className="flex items-center gap-2 justify-end">
-                            {Number(p.installmentMonth || 0) > 0 && (
-                              <button
-                                onClick={() => openEditModal(p)}
-                                className={`inline-flex items-center px-3 py-1 rounded text-sm font-medium border bg-white border-blue-500 text-blue-600 hover:bg-blue-500 hover:text-white`}
-                              >
-                                Edit
-                              </button>
+                            {canEditDelete ? (
+                              <>
+                                {Number(p.installmentMonth || 0) > 0 && (
+                                  <button
+                                    onClick={() => openEditModal(p)}
+                                    className={`inline-flex items-center px-3 py-1 rounded text-sm font-medium border bg-white border-blue-500 text-blue-600 hover:bg-blue-500 hover:text-white`}
+                                  >
+                                    Edit
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleDelete(String(p._id))}
+                                  disabled={deletingId === String(p._id)}
+                                  className={`inline-flex items-center px-3 py-1 rounded text-sm font-medium border ${
+                                    deletingId === String(p._id)
+                                      ? "bg-red-300 border-red-300 text-white cursor-not-allowed"
+                                      : "bg-white border-red-500 text-red-600 hover:bg-red-500 hover:text-white"
+                                  }`}
+                                >
+                                  {deletingId === String(p._id)
+                                    ? "Deleting…"
+                                    : "Delete"}
+                                </button>
+                              </>
+                            ) : (
+                              // Employees can only request edit/delete
+                              <>
+                                {Number(p.installmentMonth || 0) > 0 && (
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        await client.post("/payments/requests", {
+                                          paymentId: p._id,
+                                          type: "edit",
+                                          reason: "Requested edit via app",
+                                        });
+                                        setError("");
+                                        alert("Edit request submitted successfully");
+                                      } catch (err: any) {
+                                        setError(err.response?.data?.error || "Failed to submit edit request");
+                                      }
+                                    }}
+                                    className={`inline-flex items-center px-3 py-1 rounded text-sm font-medium border bg-white border-orange-500 text-orange-600 hover:bg-orange-500 hover:text-white`}
+                                  >
+                                    Request Edit
+                                  </button>
+                                )}
+                                <button
+                                  onClick={async () => {
+                                    if (confirm("Are you sure you want to request deletion of this payment?")) {
+                                      try {
+                                        await client.post("/payments/requests", {
+                                          paymentId: p._id,
+                                          type: "delete",
+                                          reason: "Requested deletion via app",
+                                        });
+                                        setError("");
+                                        alert("Delete request submitted successfully");
+                                        await fetchData();
+                                      } catch (err: any) {
+                                        setError(err.response?.data?.error || "Failed to submit delete request");
+                                      }
+                                    }
+                                  }}
+                                  className={`inline-flex items-center px-3 py-1 rounded text-sm font-medium border bg-white border-orange-500 text-orange-600 hover:bg-orange-500 hover:text-white`}
+                                >
+                                  Request Delete
+                                </button>
+                              </>
                             )}
-                            <button
-                              onClick={() => handleDelete(String(p._id))}
-                              disabled={deletingId === String(p._id)}
-                              className={`inline-flex items-center px-3 py-1 rounded text-sm font-medium border ${
-                                deletingId === String(p._id)
-                                  ? "bg-red-300 border-red-300 text-white cursor-not-allowed"
-                                  : "bg-white border-red-500 text-red-600 hover:bg-red-500 hover:text-white"
-                              }`}
-                            >
-                              {deletingId === String(p._id)
-                                ? "Deleting…"
-                                : "Delete"}
-                            </button>
                           </div>
                         )}
                       </td>

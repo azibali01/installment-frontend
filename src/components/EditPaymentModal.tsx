@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import client from "../api/client";
+import { useAuth } from "../contexts/AuthContext";
 
 type Props = {
   open: boolean;
@@ -14,12 +15,15 @@ const EditPaymentModal: React.FC<Props> = ({
   onClose,
   onSaved,
 }) => {
+  const { user } = useAuth();
   const [amount, setAmount] = useState("");
   const [installmentMonth, setInstallmentMonth] = useState("");
   const [paymentDate, setPaymentDate] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  
+  const canEditDirectly = user?.role === "admin" || user?.role === "manager";
 
   useEffect(() => {
     if (payment) {
@@ -47,14 +51,33 @@ const EditPaymentModal: React.FC<Props> = ({
     if (!Number.isInteger(m) || m <= 0) return setError("Invalid month");
     setSaving(true);
     try {
-      await client.put(`/payments/${payment._id}`, {
-        amount: a,
-        installmentMonth: m,
-        paymentDate,
-        notes,
-      });
-      onSaved();
-      onClose();
+      if (canEditDirectly) {
+        // Admin/Manager can edit directly
+        await client.put(`/payments/${payment._id}`, {
+          amount: a,
+          installmentMonth: m,
+          paymentDate,
+          notes,
+        });
+        onSaved();
+        onClose();
+      } else {
+        // Employees must submit a request
+        await client.post("/payments/requests", {
+          paymentId: payment._id,
+          type: "edit",
+          changes: {
+            amount: a,
+            installmentMonth: m,
+            paymentDate,
+            notes,
+          },
+          reason: "Requested edit via app",
+        });
+        alert("Edit request submitted successfully. Admin/Manager will review it.");
+        onSaved();
+        onClose();
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || "Failed to save");
     } finally {

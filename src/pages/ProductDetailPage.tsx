@@ -6,6 +6,7 @@ import client from "../api/client";
 import type { Product } from "../types";
 import { useAuth } from "../contexts/AuthContext";
 import ConfirmModal from "../components/ConfirmModal";
+import { formatCurrency } from "../utils/format";
 
 const ProductDetailPage: React.FC = () => {
   const { id } = useParams();
@@ -84,7 +85,7 @@ const ProductDetailPage: React.FC = () => {
             </button>
             <h1 className="text-2xl font-bold">{product.name}</h1>
             <div className="text-sm text-slate-500">
-              PKR {Number(product.price || 0).toLocaleString()}
+              {formatCurrency(product.price || 0)}
             </div>
           </div>
           <div className="flex items-center gap-2">
