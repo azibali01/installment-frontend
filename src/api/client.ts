@@ -1,32 +1,45 @@
 import axios from "axios";
 
 // Automatically detect environment:
-// - In development (npm run dev): use localhost backend via proxy (/api)
+// - In development: Use /api proxy by default, but allow VITE_USE_REMOTE_BACKEND=true to use remote
 // - In production: use VITE_API_BASE_URL if set, otherwise use /api (same origin)
-// - If VITE_API_BASE_URL is explicitly set, use it (for production deployments)
 const getApiBaseUrl = () => {
-  // If explicitly set, use it (for production)
+  // In development mode
+  if (import.meta.env.DEV) {
+    // If explicitly told to use remote backend in dev, use it
+    // This is useful when local backend is not running and you want to use CapRover backend
+    if (import.meta.env.VITE_USE_REMOTE_BACKEND === "true" && import.meta.env.VITE_API_BASE_URL) {
+      return import.meta.env.VITE_API_BASE_URL;
+    }
+    // Otherwise, use /api proxy to localhost backend (default for local development)
+    return "/api";
+  }
+  
+  // In production, use VITE_API_BASE_URL if set
   if (import.meta.env.VITE_API_BASE_URL) {
     return import.meta.env.VITE_API_BASE_URL;
   }
   
-  // In development mode, use /api which will be proxied to localhost:5000
-  if (import.meta.env.DEV) {
-    return "/api";
-  }
-  
-  // In production without explicit URL, use /api (same origin)
+  // Production fallback: use /api (same origin)
   return "/api";
 };
 
 const API_BASE_URL = getApiBaseUrl();
 
 // Debug: Always log API URL to help debug connection issues
+const configNote = import.meta.env.DEV 
+  ? (import.meta.env.VITE_USE_REMOTE_BACKEND === "true" 
+      ? "Using remote backend from VITE_API_BASE_URL" 
+      : "Using /api proxy to localhost backend")
+  : "Using configured API URL for production";
+
 console.info("API Configuration:", {
   VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
+  VITE_USE_REMOTE_BACKEND: import.meta.env.VITE_USE_REMOTE_BACKEND,
   resolvedBaseURL: API_BASE_URL,
   isDev: import.meta.env.DEV,
-  mode: import.meta.env.MODE
+  mode: import.meta.env.MODE,
+  note: configNote
 });
 
 const client = axios.create({
