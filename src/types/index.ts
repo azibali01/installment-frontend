@@ -57,6 +57,8 @@ export interface InstallmentPlan {
   numberOfMonths: number
   status: "pending" | "approved" | "rejected" | "completed"
   reference?: string
+  roundingPolicy?: "nearest" | "up" | "down"
+  interestModel?: "flat" | "amortized"
   installmentSchedule: Array<{
     month: number
     dueDate: string

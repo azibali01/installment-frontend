@@ -171,6 +171,14 @@ export const ReportsPage: React.FC = () => {
         </div>
       </header>
 
+      {/* Print Header */}
+      <div className="hidden print:block p-8 mb-4 border-b bg-white">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold">Financial Report</h1>
+          <p className="text-gray-500">Generated on {new Date().toLocaleDateString()}</p>
+        </div>
+      </div>
+
       <main className="w-full px-4 sm:px-6 lg:px-8 py-8">
         <Card className="mb-8 print:hidden">
           <h2 className="text-lg font-semibold text-slate-900 mb-4">

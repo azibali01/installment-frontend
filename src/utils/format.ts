@@ -56,3 +56,15 @@ export function formatNumber(
   return numValue.toLocaleString("en-US", options);
 }
 
+/**
+ * Format a date string to a locale date string
+ * @param d - The date string or Date object
+ * @returns Formatted date string like "1/1/2023" or "—" if invalid
+ */
+export function formatDate(d?: string | Date | null): string {
+  if (!d) return "—";
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return "—";
+  return dt.toLocaleDateString();
+}
+

@@ -184,7 +184,7 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <aside className="w-56 bg-white border-r border-gray-200 h-screen sticky top-0">
+    <aside className="w-56 bg-white border-r border-gray-200 h-screen sticky top-0 print:hidden">
       <div className="p-4 border-b border-gray-100">
         <h2 className="text-lg font-bold">Installment App</h2>
         <p className="text-sm text-slate-500 mt-1">

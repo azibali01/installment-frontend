@@ -100,8 +100,8 @@ const InstallmentDetailPage: React.FC = () => {
 
   const preview = React.useMemo(() => {
     const basePrice = Number((plan as any)?.productId?.price || 0);
-    let markupAmountNum = Number((formData as any).markupAmount) || 0;
-    let markupPercentNum = Number((formData as any).markupPercent) || 0;
+    let markupAmountNum = Number(formData.markupAmount) || 0;
+    let markupPercentNum = Number(formData.markupPercent) || 0;
     if (!markupAmountNum && markupPercentNum)
       markupAmountNum = (basePrice * markupPercentNum) / 100;
     if (!markupPercentNum && markupAmountNum && basePrice > 0)
@@ -109,7 +109,7 @@ const InstallmentDetailPage: React.FC = () => {
     const totalAmount =
       basePrice + (Number.isNaN(markupAmountNum) ? 0 : markupAmountNum);
     let down = Number(formData.downPayment) || 0;
-    let downPercentNum = Number((formData as any).downPercent) || 0;
+    let downPercentNum = Number(formData.downPercent) || 0;
     if (!down && downPercentNum && totalAmount > 0)
       down = (totalAmount * downPercentNum) / 100;
     if (!downPercentNum && down && totalAmount > 0)
@@ -487,17 +487,17 @@ const InstallmentDetailPage: React.FC = () => {
         (Number(plan.downPayment || 0) / (Number(plan.totalAmount || 0) || 1)) *
           100
       ),
-      markupPercent: String((plan as any).markupPercent || ""),
+      markupPercent: String(plan.markupPercent || ""),
       markupAmount: String(
-        ((plan as any).totalAmount || 0) -
-          Number((plan as any).productId?.price || 0)
+        (plan.totalAmount || 0) -
+          Number((plan.productId as any)?.price || 0)
       ),
       numberOfMonths: String(plan.numberOfMonths || ""),
       startDate:
-        (plan as any).startDate || new Date().toISOString().slice(0, 10),
-      roundingPolicy: (plan as any).roundingPolicy || "nearest",
-      interestModel: (plan as any).interestModel || "amortized",
-      reference: (plan as any).reference || "",
+        plan.startDate || new Date().toISOString().slice(0, 10),
+      roundingPolicy: plan.roundingPolicy || "nearest",
+      interestModel: plan.interestModel || "amortized",
+      reference: plan.reference || "",
       bankCheque: {
         bankName: plan.bankCheque?.bankName || "",
         branch: plan.bankCheque?.branch || "",
@@ -542,8 +542,8 @@ const InstallmentDetailPage: React.FC = () => {
 
       const payload: any = {
         downPayment: Number(formData.downPayment),
-        downPercent: Number((formData as any).downPercent) || undefined,
-        markupPercent: Number((formData as any).markupPercent) || 0,
+        downPercent: Number(formData.downPercent) || undefined,
+        markupPercent: Number(formData.markupPercent) || 0,
         numberOfMonths: Number(formData.numberOfMonths),
         startDate: formData.startDate,
         roundingPolicy: formData.roundingPolicy,
@@ -714,7 +714,7 @@ const InstallmentDetailPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <header className="bg-white border-b p-4">
+      <header className="bg-white border-b p-4 print:hidden">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div>
             <button
@@ -739,6 +739,15 @@ const InstallmentDetailPage: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => window.print()}
+              className="px-3 py-1 bg-blue-600 text-white rounded flex items-center gap-1 hover:bg-blue-700 transition"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z" />
+              </svg>
+              Print
+            </button>
             {user?.role === "admin" ||
             user?.role === "manager" ||
             (hasPermission && hasPermission("manage_installments")) ? (
@@ -775,6 +784,43 @@ const InstallmentDetailPage: React.FC = () => {
           </div>
         </div>
       </header>
+
+      {/* Print Header - Only visible when printing */}
+      <div className="hidden print:block p-8 mb-4 border-b bg-white">
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Installment Schedule</h1>
+            <p className="text-gray-500 text-sm">Generated on {new Date().toLocaleDateString()}</p>
+          </div>
+          <div className="text-right">
+             <div className="text-2xl font-bold text-blue-600">{(plan as any).installmentId || 'N/A'}</div>
+             <div className="text-sm text-gray-500">Plan ID</div>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-8 mb-6">
+           <div className="bg-gray-50 p-4 rounded border">
+             <h3 className="font-bold text-gray-700 mb-2 border-b pb-1">Customer Details</h3>
+             <div className="grid grid-cols-[100px_1fr] gap-y-1">
+                <span className="text-gray-500">Name:</span>
+                <span className="font-medium">{customerName}</span>
+                <span className="text-gray-500">Phone:</span>
+                <span>{(plan as any).customerId?.phone || '-'}</span>
+                <span className="text-gray-500">CNIC:</span>
+                <span>{(plan as any).customerId?.cnic || '-'}</span>
+             </div>
+           </div>
+           <div className="bg-gray-50 p-4 rounded border">
+             <h3 className="font-bold text-gray-700 mb-2 border-b pb-1">Product Details</h3>
+             <div className="grid grid-cols-[100px_1fr] gap-y-1">
+                <span className="text-gray-500">Product:</span>
+                <span className="font-medium">{productName}</span>
+                <span className="text-gray-500">Reference:</span>
+                <span>{(plan as any).reference || '-'}</span>
+             </div>
+           </div>
+        </div>
+      </div>
 
       <main className="max-w-6xl mx-auto p-6">
         <div className="card p-6">
@@ -893,7 +939,7 @@ const InstallmentDetailPage: React.FC = () => {
                       </div>
                       <div className="text-sm text-slate-500">{sch.status}</div>
                     </div>
-                    <div>
+                    <div className="print:hidden">
                       <button
                         onClick={() => {
                           setSelectedScheduleIndex(idx);
@@ -918,7 +964,7 @@ const InstallmentDetailPage: React.FC = () => {
             )}
           </div>
         </div>
-        <div className="card p-6 mt-6">
+        <div className="card p-6 mt-6 print:hidden">
           <div className="flex justify-between items-center mb-2">
             <h3 className="text-lg font-semibold">Recent Calls</h3>
             <div>

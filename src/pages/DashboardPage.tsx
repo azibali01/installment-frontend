@@ -6,6 +6,7 @@ import client from "../api/client";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { formatCurrency } from "../utils/format";
+import { DetailsModal } from "../components/DetailsModal";
 
 const IconWrapper = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
@@ -132,6 +133,8 @@ interface DashboardStats {
   totalCashIn: number;
   totalCashOut: number;
   cashInHand: number;
+  totalExpectedRevenue: number;
+  totalRemainingRevenue: number;
 }
 
 interface InstallmentListItem {
@@ -156,14 +159,19 @@ export const DashboardPage: React.FC = () => {
     totalCashIn: 0,
     totalCashOut: 0,
     cashInHand: 0,
+    totalExpectedRevenue: 0,
+    totalRemainingRevenue: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [todayList, setTodayList] = useState<InstallmentListItem[]>([]);
   const [upcomingList, setUpcomingList] = useState<InstallmentListItem[]>([]);
   const [overdueList, setOverdueList] = useState<InstallmentListItem[]>([]);
-  const [expandedToday, setExpandedToday] = useState(false);
-  const [expandedUpcoming, setExpandedUpcoming] = useState(false);
-  const [expandedOverdue, setExpandedOverdue] = useState(false);
+  
+  // Modal state
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [detailsModalTitle, setDetailsModalTitle] = useState("");
+  const [detailsModalItems, setDetailsModalItems] = useState<InstallmentListItem[]>([]);
+
   const [showLogModal, setShowLogModal] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [selectedScheduleMonth, setSelectedScheduleMonth] = useState<
@@ -197,6 +205,8 @@ export const DashboardPage: React.FC = () => {
           totalCashIn: d.totalCashIn || 0,
           totalCashOut: d.totalCashOut || 0,
           cashInHand: (d.totalCashIn || 0) - (d.totalCashOut || 0),
+          totalExpectedRevenue: d.totalExpectedRevenue || 0,
+          totalRemainingRevenue: d.totalRemainingRevenue || 0,
         });
 
         setTodayList(d.todayList || []);
@@ -219,6 +229,12 @@ export const DashboardPage: React.FC = () => {
 
   const navigateTo = (path: string) => {
     navigate(path);
+  };
+
+  const openDetailsModal = (title: string, data: InstallmentListItem[]) => {
+    setDetailsModalTitle(title);
+    setDetailsModalItems(data);
+    setDetailsModalOpen(true);
   };
 
   async function handleSubmitLog(e: React.FormEvent) {
@@ -281,7 +297,25 @@ export const DashboardPage: React.FC = () => {
 
       <main className="w-full px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="card p-6">
+            <p className="text-slate-700 text-sm font-medium">Total Expected Revenue (Due)</p>
+            <p className="text-3xl font-bold text-blue-600 mt-2">
+              {formatCurrency(stats.totalExpectedRevenue)}
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              Sum of all installments due till today
+            </p>
+          </div>
+          <div className="card p-6">
+            <p className="text-slate-700 text-sm font-medium">Total Remaining Revenue</p>
+            <p className="text-3xl font-bold text-purple-600 mt-2">
+              {formatCurrency(stats.totalRemainingRevenue)}
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              Total outstanding balance of all active plans
+            </p>
+          </div>
           <div className="card p-6">
             <p className="text-slate-700 text-sm font-medium">Today's Due</p>
             <p className="text-3xl font-bold text-slate-900 mt-2">
@@ -313,91 +347,11 @@ export const DashboardPage: React.FC = () => {
 
               <div className="mt-3">
                 <button
-                  className="text-sm text-blue-600 hover:underline"
-                  onClick={() => setExpandedToday((s) => !s)}
+                  className="text-sm text-blue-600 hover:underline font-medium"
+                  onClick={() => openDetailsModal("Today's Due", todayList)}
                 >
-                  {expandedToday ? "Collapse details" : "Expand details"}
+                  View All Details &rarr;
                 </button>
-                {expandedToday && (
-                  <div className="mt-2 overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                      <thead>
-                        <tr>
-                          <th className="py-2">Plan ID</th>
-                          <th className="py-2">Customer</th>
-                          <th className="py-2">Due Date</th>
-                          <th className="py-2">Amount</th>
-                          <th className="py-2">Paid</th>
-                          <th className="py-2">Remaining</th>
-                          <th className="py-2">Month</th>
-                          <th className="py-2">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {todayList.map((it) => (
-                          <tr
-                            key={`${it.planId}-${it.installment?.month}`}
-                            className="border-t"
-                          >
-                            <td className="py-2">
-                              {String(it.planId).slice(0, 8)}
-                            </td>
-                            <td className="py-2">{it.customer?.name || "—"}</td>
-                            <td className="py-2">
-                              {formatDate(it.installment?.dueDate)}
-                            </td>
-                            <td className="py-2">
-                              {formatCurrency(it.installment?.amount || 0)}
-                            </td>
-                            <td className="py-2">
-                              {formatCurrency(it.installment?.paidAmount || 0)}
-                            </td>
-                            <td className="py-2">
-                              {formatCurrency(
-                                it.installment?.remaining ||
-                                it.installment?.amount ||
-                                0
-                              )}
-                            </td>
-                            <td className="py-2">
-                              {it.installment?.month ?? "—"}
-                            </td>
-                            <td className="py-2">
-                              <div className="flex items-center gap-2">
-                                <button
-                                  className="text-blue-600 hover:underline"
-                                  onClick={() =>
-                                    navigateTo(`/installments/${it.planId}`)
-                                  }
-                                >
-                                  View
-                                </button>
-                                <button
-                                  className="text-sm px-2 py-1 bg-blue-600 text-white rounded"
-                                  onClick={() => {
-                                    setSelectedPlanId(String(it.planId));
-                                    setSelectedScheduleMonth(
-                                      it.installment?.month ?? null
-                                    );
-                                    setLogForm({
-                                      response: "",
-                                      contactMethod: "phone",
-                                      nextContactDate: "",
-                                      notes: "",
-                                    });
-                                    setShowLogModal(true);
-                                  }}
-                                >
-                                  Log Call
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -432,91 +386,11 @@ export const DashboardPage: React.FC = () => {
 
               <div className="mt-3">
                 <button
-                  className="text-sm text-blue-600 hover:underline"
-                  onClick={() => setExpandedUpcoming((s) => !s)}
+                  className="text-sm text-blue-600 hover:underline font-medium"
+                  onClick={() => openDetailsModal("Upcoming Installments", upcomingList)}
                 >
-                  {expandedUpcoming ? "Collapse details" : "Expand details"}
+                  View All Details &rarr;
                 </button>
-                {expandedUpcoming && (
-                  <div className="mt-2 overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                      <thead>
-                        <tr>
-                          <th className="py-2">Plan ID</th>
-                          <th className="py-2">Customer</th>
-                          <th className="py-2">Due Date</th>
-                          <th className="py-2">Amount</th>
-                          <th className="py-2">Paid</th>
-                          <th className="py-2">Remaining</th>
-                          <th className="py-2">Month</th>
-                          <th className="py-2">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {upcomingList.map((it) => (
-                          <tr
-                            key={`${it.planId}-${it.installment?.month}`}
-                            className="border-t"
-                          >
-                            <td className="py-2">
-                              {String(it.planId).slice(0, 8)}
-                            </td>
-                            <td className="py-2">{it.customer?.name || "—"}</td>
-                            <td className="py-2">
-                              {formatDate(it.installment?.dueDate)}
-                            </td>
-                            <td className="py-2">
-                              {formatCurrency(it.installment?.amount || 0)}
-                            </td>
-                            <td className="py-2">
-                              {formatCurrency(it.installment?.paidAmount || 0)}
-                            </td>
-                            <td className="py-2">
-                              {formatCurrency(
-                                it.installment?.remaining ||
-                                it.installment?.amount ||
-                                0
-                              )}
-                            </td>
-                            <td className="py-2">
-                              {it.installment?.month ?? "—"}
-                            </td>
-                            <td className="py-2">
-                              <div className="flex items-center gap-2">
-                                <button
-                                  className="text-blue-600 hover:underline"
-                                  onClick={() =>
-                                    navigateTo(`/installments/${it.planId}`)
-                                  }
-                                >
-                                  View
-                                </button>
-                                <button
-                                  className="text-sm px-2 py-1 bg-blue-600 text-white rounded"
-                                  onClick={() => {
-                                    setSelectedPlanId(String(it.planId));
-                                    setSelectedScheduleMonth(
-                                      it.installment?.month ?? null
-                                    );
-                                    setLogForm({
-                                      response: "",
-                                      contactMethod: "phone",
-                                      nextContactDate: "",
-                                      notes: "",
-                                    });
-                                    setShowLogModal(true);
-                                  }}
-                                >
-                                  Log Call
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -551,91 +425,11 @@ export const DashboardPage: React.FC = () => {
 
               <div className="mt-3">
                 <button
-                  className="text-sm text-blue-600 hover:underline"
-                  onClick={() => setExpandedOverdue((s) => !s)}
+                  className="text-sm text-blue-600 hover:underline font-medium"
+                  onClick={() => openDetailsModal("Overdue Installments", overdueList)}
                 >
-                  {expandedOverdue ? "Collapse details" : "Expand details"}
+                  View All Details &rarr;
                 </button>
-                {expandedOverdue && (
-                  <div className="mt-2 overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                      <thead>
-                        <tr>
-                          <th className="py-2">Plan ID</th>
-                          <th className="py-2">Customer</th>
-                          <th className="py-2">Due Date</th>
-                          <th className="py-2">Amount</th>
-                          <th className="py-2">Paid</th>
-                          <th className="py-2">Remaining</th>
-                          <th className="py-2">Month</th>
-                          <th className="py-2">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {overdueList.map((it) => (
-                          <tr
-                            key={`${it.planId}-${it.installment?.month}`}
-                            className="border-t"
-                          >
-                            <td className="py-2">
-                              {String(it.planId).slice(0, 8)}
-                            </td>
-                            <td className="py-2">{it.customer?.name || "—"}</td>
-                            <td className="py-2">
-                              {formatDate(it.installment?.dueDate)}
-                            </td>
-                            <td className="py-2">
-                              {formatCurrency(it.installment?.amount || 0)}
-                            </td>
-                            <td className="py-2">
-                              {formatCurrency(it.installment?.paidAmount || 0)}
-                            </td>
-                            <td className="py-2">
-                              {formatCurrency(
-                                it.installment?.remaining ||
-                                it.installment?.amount ||
-                                0
-                              )}
-                            </td>
-                            <td className="py-2">
-                              {it.installment?.month ?? "—"}
-                            </td>
-                            <td className="py-2">
-                              <div className="flex items-center gap-2">
-                                <button
-                                  className="text-blue-600 hover:underline"
-                                  onClick={() =>
-                                    navigateTo(`/installments/${it.planId}`)
-                                  }
-                                >
-                                  View
-                                </button>
-                                <button
-                                  className="text-sm px-2 py-1 bg-blue-600 text-white rounded"
-                                  onClick={() => {
-                                    setSelectedPlanId(String(it.planId));
-                                    setSelectedScheduleMonth(
-                                      it.installment?.month ?? null
-                                    );
-                                    setLogForm({
-                                      response: "",
-                                      contactMethod: "phone",
-                                      nextContactDate: "",
-                                      notes: "",
-                                    });
-                                    setShowLogModal(true);
-                                  }}
-                                >
-                                  Log Call
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -739,7 +533,7 @@ export const DashboardPage: React.FC = () => {
           </button>
         </div>
         {showLogModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center">
             <div
               className="absolute inset-0 bg-black opacity-40"
               onClick={() => setShowLogModal(false)}
@@ -854,6 +648,26 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
         )}
+
+        <DetailsModal
+          isOpen={detailsModalOpen}
+          onClose={() => setDetailsModalOpen(false)}
+          title={detailsModalTitle}
+          data={detailsModalItems}
+          onLogCall={(item) => {
+            setSelectedPlanId(item.planId);
+            setSelectedScheduleMonth(item.installment?.month ?? null);
+            setLogForm({
+              response: "",
+              contactMethod: "phone",
+              nextContactDate: "",
+              notes: "",
+            });
+            setShowLogModal(true);
+            // Optionally close the details modal if you want, but keeping it open might be better context
+            // setDetailsModalOpen(false); 
+          }}
+        />
       </main>
     </div>
   );

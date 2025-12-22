@@ -9,6 +9,7 @@ import PaymentPreview from "../components/PaymentPreview";
 import Pagination from "../components/Pagination";
 import EditPaymentModal from "../components/EditPaymentModal";
 import ConfirmModal from "../components/ConfirmModal";
+import SearchableSelect from "../components/SearchableSelect";
 import { formatCurrency } from "../utils/format";
 import type { Payment, InstallmentPlan } from "../types";
 import { useAuth } from "../contexts/AuthContext";
@@ -29,6 +30,7 @@ export const PaymentsPage: React.FC = () => {
     amount: "",
     paymentDate: new Date().toISOString().split("T")[0],
     notes: "",
+    receivedBy: "",
   });
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -40,10 +42,21 @@ export const PaymentsPage: React.FC = () => {
   const [totalPayments, setTotalPayments] = useState(0);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<any | null>(null);
+  const [users, setUsers] = useState<any[]>([]);
 
   useEffect(() => {
     fetchData();
-  }, [currentPage, pageSize]);
+    fetchUsers();
+  }, [currentPage, pageSize, filterCustomerId, filterStatus]);
+
+  const fetchUsers = async () => {
+    try {
+      const res = await client.get("/users");
+      setUsers(res.data || []);
+    } catch (err) {
+      console.error("Failed to fetch users", err);
+    }
+  };
 
   const fetchData = async () => {
     setError("");
@@ -98,6 +111,7 @@ export const PaymentsPage: React.FC = () => {
         amount: Number.parseFloat(formData.amount),
         paymentDate: new Date(formData.paymentDate),
         notes: formData.notes,
+        receivedBy: formData.receivedBy || undefined,
       });
 
       setFormData({
@@ -106,6 +120,7 @@ export const PaymentsPage: React.FC = () => {
         amount: "",
         paymentDate: new Date().toISOString().split("T")[0],
         notes: "",
+        receivedBy: "",
       });
       setShowForm(false);
       await fetchData();
@@ -207,43 +222,41 @@ export const PaymentsPage: React.FC = () => {
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <select
-                  value={formData.installmentPlanId}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      installmentPlanId: e.target.value,
-                    })
-                  }
-                  className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900"
-                  required
-                >
-                  <option value="">Select Installment Plan</option>
-                  {sortedInstallments.map((inst) => {
-                    const i = inst as any;
-                    const cust = i.customerId;
-                    const prod = i.productId;
-                    const custLabel =
-                      cust && typeof cust === "object"
-                        ? cust.name ?? String(cust)
-                        : String(cust ?? "Customer");
-                    const prodLabel =
-                      prod && typeof prod === "object"
-                        ? prod.name ?? String(prod)
-                        : String(prod ?? "Product");
-                    const startDate = i.startDate
-                      ? new Date(i.startDate).toLocaleDateString()
-                      : null;
-                    const shortId = i._id ? String(i._id).slice(0, 8) : "";
-                    return (
-                      <option key={i._id} value={i._id}>
-                        {custLabel} - {prodLabel}{" "}
-                        {startDate ? `(${startDate})` : ""}{" "}
-                        {shortId ? `[${shortId}]` : ""}
-                      </option>
-                    );
-                  })}
-                </select>
+                <div className="relative">
+                  <SearchableSelect
+                    value={formData.installmentPlanId}
+                    onChange={(val) =>
+                      setFormData({
+                        ...formData,
+                        installmentPlanId: val,
+                      })
+                    }
+                    options={sortedInstallments.map((inst) => {
+                      const i = inst as any;
+                      const cust = i.customerId;
+                      const prod = i.productId;
+                      const custLabel =
+                        cust && typeof cust === "object"
+                          ? cust.name ?? String(cust)
+                          : String(cust ?? "Customer");
+                      const prodLabel =
+                        prod && typeof prod === "object"
+                          ? prod.name ?? String(prod)
+                          : String(prod ?? "Product");
+                      const startDate = i.startDate
+                        ? new Date(i.startDate).toLocaleDateString()
+                        : null;
+                      const shortId = i._id ? String(i._id).slice(0, 8) : "";
+                      return {
+                        value: i._id,
+                        label: `${custLabel} - ${prodLabel}`,
+                        subLabel: `${startDate ? `Start: ${startDate}` : ""} ${shortId ? `[${shortId}]` : ""}`
+                      };
+                    })}
+                    placeholder="Select Installment Plan"
+                    required
+                  />
+                </div>
                 <select
                   value={formData.installmentMonth}
                   onChange={(e) => {
@@ -329,6 +342,20 @@ export const PaymentsPage: React.FC = () => {
                   className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900"
                   required
                 />
+                <select
+                  value={formData.receivedBy}
+                  onChange={(e) =>
+                    setFormData({ ...formData, receivedBy: e.target.value })
+                  }
+                  className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900"
+                >
+                  <option value="">Received By (Default: You)</option>
+                  {users.map((u) => (
+                    <option key={u._id || u.id} value={u._id || u.id}>
+                      {u.name} ({u.role})
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="mb-4 p-3 border rounded bg-white">
                 <div className="text-sm text-slate-600">Preview</div>
@@ -365,22 +392,21 @@ export const PaymentsPage: React.FC = () => {
         {/* Filters toolbar - mirror Installments page */}
         <div className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div className="flex items-center gap-3">
-            <select
-              value={filterCustomerId}
-              onChange={(e) => {
-                setFilterCustomerId(e.target.value);
-                setCurrentPage(1);
-                void fetchData();
-              }}
-              className="px-3 py-2 bg-white border border-gray-300 rounded text-slate-900"
-            >
-              <option value="">All Customers</option>
-              {customers.map((c) => (
-                <option key={c._id} value={c._id}>
-                  {c.name || c.fullName || String(c._id).slice(0, 8)}
-                </option>
-              ))}
-            </select>
+            <div className="w-64">
+              <SearchableSelect
+                value={filterCustomerId}
+                onChange={(val) => {
+                  setFilterCustomerId(val);
+                  setCurrentPage(1);
+                }}
+                options={customers.map((c) => ({
+                  value: c._id,
+                  label: c.name || c.fullName || String(c._id).slice(0, 8),
+                  subLabel: c.cnic ? `CNIC: ${c.cnic}` : undefined,
+                }))}
+                placeholder="All Customers"
+              />
+            </div>
 
             <select
               value={filterStatus}
