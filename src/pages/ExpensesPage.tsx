@@ -56,11 +56,14 @@ export const ExpensesPage: React.FC = () => {
       if (Array.isArray(res.data)) {
         setExpenses(res.data || []);
         setTotalExpenses(res.data.length || 0);
+      } else if (res.data && Array.isArray(res.data.data)) {
+        setExpenses(res.data.data);
+        setTotalExpenses(res.data.meta?.total || res.data.data.length || 0);
+        if (res.data.meta?.page) setCurrentPage(res.data.meta.page);
+        if (res.data.meta?.limit) setPageSize(res.data.meta.limit);
       } else {
-        setExpenses(res.data.data || res.data || []);
-        setTotalExpenses(res.data.total || 0);
-        if (res.data.page) setCurrentPage(res.data.page);
-        if (res.data.pageSize) setPageSize(res.data.pageSize);
+        setExpenses([]);
+        setTotalExpenses(0);
       }
 
       const normalizedUsers: User[] = (usersRes.data || []).map((u: any) => ({

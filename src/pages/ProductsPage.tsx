@@ -7,10 +7,13 @@ import client from "../api/client";
 import type { Product } from "../types";
 import { useAuth } from "../contexts/AuthContext";
 import { formatCurrency } from "../utils/format";
+import { handleApiError } from "../utils/errorHandler";
+import { useToast } from "../contexts/ToastContext";
 
 export const ProductsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -39,6 +42,7 @@ export const ProductsPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
     try {
       await client.post("/products", {
         name: formData.name,
@@ -50,9 +54,12 @@ export const ProductsPage: React.FC = () => {
       });
       setFormData({ name: "", price: "", description: "", quantity: "" });
       setShowForm(false);
+      showToast("Product created successfully", "success");
       await fetchProducts();
     } catch (err) {
-      setError("Failed to create product");
+      const msg = handleApiError(err, "Failed to create product");
+      setError(msg);
+      showToast(msg, "error");
     }
   };
 

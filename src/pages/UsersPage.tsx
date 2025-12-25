@@ -2,6 +2,15 @@
 
 import type React from "react";
 import { useState, useEffect } from "react";
+interface EditUserData {
+  _id: string;
+  name: string;
+  email: string;
+  role: "admin" | "manager" | "employee";
+  phone?: string;
+  salary?: number;
+  isActive?: boolean;
+}
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import client from "../api/client";
@@ -19,6 +28,74 @@ interface UserData {
 }
 
 export const UsersPage: React.FC = () => {
+      // Delete user handler
+      const handleDelete = async (userId: string) => {
+        if (window.confirm("Are you sure you want to delete this user?")) {
+          try {
+            await client.delete(`/users/${userId}`);
+            await fetchUsers();
+          } catch (err) {
+            setError("Failed to delete user");
+          }
+        }
+      };
+    const [editModalOpen, setEditModalOpen] = useState(false);
+    const [editUser, setEditUser] = useState<EditUserData | null>(null);
+    const [editForm, setEditForm] = useState<EditUserData & { password?: string } | null>(null);
+    const [editError, setEditError] = useState("");
+    const [editShowPassword, setEditShowPassword] = useState(false);
+
+    const openEditModal = (user: EditUserData) => {
+      setEditUser(user);
+      setEditForm({ ...user, password: "" });
+      setEditError("");
+      setEditModalOpen(true);
+    };
+
+    const closeEditModal = () => {
+      setEditModalOpen(false);
+      setEditUser(null);
+      setEditForm(null);
+      setEditError("");
+    };
+
+    const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+      if (!editForm) return;
+      const { name, value, type } = e.target;
+      if (name === "salary") {
+        setEditForm({ ...editForm, salary: Number(value) });
+      } else if (name === "password") {
+        setEditForm({ ...editForm, password: value });
+      } else if (type === "checkbox") {
+        setEditForm({ ...editForm, [name]: (e.target as HTMLInputElement).checked });
+      } else {
+        setEditForm({ ...editForm, [name]: value });
+      }
+    };
+
+    const handleEditSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!editForm) return;
+      try {
+        // Only send password if filled
+        const payload: any = {
+          name: editForm.name,
+          email: editForm.email,
+          role: editForm.role,
+          phone: editForm.phone,
+          salary: editForm.salary,
+          isActive: editForm.isActive,
+        };
+        if (editForm.password && editForm.password.length > 0) {
+          payload.password = editForm.password;
+        }
+        await client.put(`/users/${editForm._id}`, payload);
+        closeEditModal();
+        await fetchUsers();
+      } catch (err: any) {
+        setEditError(err.response?.data?.error || "Failed to update user");
+      }
+    };
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
@@ -41,7 +118,7 @@ export const UsersPage: React.FC = () => {
       return;
     }
     fetchUsers();
-  }, []);
+  }, [currentUser]);
 
   const fetchUsers = async () => {
     try {
@@ -77,17 +154,6 @@ export const UsersPage: React.FC = () => {
       await fetchUsers();
     } catch (err: any) {
       setError(err.response?.data?.error || "Failed to create user");
-    }
-  };
-
-  const handleDelete = async (userId: string) => {
-    if (window.confirm("Are you sure you want to delete this user?")) {
-      try {
-        await client.delete(`/users/${userId}`);
-        await fetchUsers();
-      } catch (err) {
-        setError("Failed to delete user");
-      }
     }
   };
 
@@ -132,6 +198,7 @@ export const UsersPage: React.FC = () => {
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* ...existing code... */}
                 <input
                   type="text"
                   placeholder="Full Name"
@@ -142,6 +209,7 @@ export const UsersPage: React.FC = () => {
                   className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900"
                   required
                 />
+                {/* ...existing code... */}
                 <input
                   type="email"
                   placeholder="Email"
@@ -152,6 +220,7 @@ export const UsersPage: React.FC = () => {
                   className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900"
                   required
                 />
+                {/* ...existing code... */}
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
@@ -169,6 +238,7 @@ export const UsersPage: React.FC = () => {
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
                     tabIndex={-1}
                   >
+                    {/* ...existing code... */}
                     {showPassword ? (
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
@@ -181,6 +251,7 @@ export const UsersPage: React.FC = () => {
                     )}
                   </button>
                 </div>
+                {/* ...existing code... */}
                 <select
                   value={formData.role}
                   onChange={(e) =>
@@ -192,6 +263,7 @@ export const UsersPage: React.FC = () => {
                   <option value="manager">Manager</option>
                   <option value="employee">Employee</option>
                 </select>
+                {/* ...existing code... */}
                 <input
                   type="tel"
                   placeholder="0300-1234567"
@@ -203,6 +275,7 @@ export const UsersPage: React.FC = () => {
                   maxLength={13}
                   className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900"
                 />
+                {/* ...existing code... */}
                 <input
                   type="number"
                   placeholder="Salary (PKR)"
@@ -284,6 +357,12 @@ export const UsersPage: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 space-x-2">
                       <button
+                        onClick={() => openEditModal(u)}
+                        className="text-blue-600 hover:text-blue-500 transition text-sm font-medium"
+                      >
+                        Edit
+                      </button>
+                      <button
                         onClick={() => handleDelete(u._id)}
                         className="text-red-600 hover:text-red-500 transition text-sm font-medium"
                       >
@@ -296,7 +375,124 @@ export const UsersPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Edit User Modal (rendered once, outside the table) */}
+        {editModalOpen && editForm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+            <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
+              <button
+                className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-xl"
+                onClick={closeEditModal}
+                aria-label="Close"
+              >
+                ×
+              </button>
+              <h2 className="text-lg font-semibold mb-4">Edit User</h2>
+              {editError && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded mb-3">
+                  {editError}
+                </div>
+              )}
+              <form onSubmit={handleEditSubmit} className="space-y-4">
+                <input
+                  type="text"
+                  name="name"
+                  placeholder="Full Name"
+                  value={editForm.name}
+                  onChange={handleEditChange}
+                  className="w-full px-4 py-2 bg-white border border-gray-300 rounded text-slate-900"
+                  required
+                />
+                <input
+                  type="email"
+                  name="email"
+                  placeholder="Email"
+                  value={editForm.email}
+                  onChange={handleEditChange}
+                  className="w-full px-4 py-2 bg-white border border-gray-300 rounded text-slate-900"
+                  required
+                />
+                <select
+                  name="role"
+                  value={editForm.role}
+                  onChange={handleEditChange}
+                  className="w-full px-4 py-2 bg-white border border-gray-300 rounded text-slate-900"
+                >
+                  <option value="admin">Admin</option>
+                  <option value="manager">Manager</option>
+                  <option value="employee">Employee</option>
+                </select>
+                <input
+                  type="tel"
+                  name="phone"
+                  placeholder="0300-1234567"
+                  value={formatPhone(editForm.phone || "")}
+                  onChange={handleEditChange}
+                  maxLength={13}
+                  className="w-full px-4 py-2 bg-white border border-gray-300 rounded text-slate-900"
+                />
+                <input
+                  type="number"
+                  name="salary"
+                  placeholder="Salary (PKR)"
+                  value={editForm.salary || ""}
+                  onChange={handleEditChange}
+                  className="w-full px-4 py-2 bg-white border border-gray-300 rounded text-slate-900"
+                  step="0.01"
+                />
+                {/* Password field for admin only */}
+                {currentUser?.role === "admin" && (
+                  <div className="relative">
+                    <input
+                      type={editShowPassword ? "text" : "password"}
+                      name="password"
+                      placeholder="New Password (leave blank to keep unchanged)"
+                      value={editForm.password || ""}
+                      onChange={handleEditChange}
+                      className="w-full px-4 py-2 pr-10 bg-white border border-gray-300 rounded text-slate-900"
+                      minLength={6}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setEditShowPassword(!editShowPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                      tabIndex={-1}
+                    >
+                      {editShowPassword ? (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    name="isActive"
+                    checked={editForm.isActive !== false}
+                    onChange={e => setEditForm({ ...editForm, isActive: e.target.checked })}
+                    className="h-4 w-4"
+                  />
+                  <label htmlFor="isActive" className="text-sm text-slate-700">Active</label>
+                </div>
+                <button
+                  type="submit"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded transition"
+                >
+                  Save Changes
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
       </main>
     </div>
   );
-};
+}

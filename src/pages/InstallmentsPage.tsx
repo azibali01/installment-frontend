@@ -20,6 +20,8 @@ import { useAuth } from "../contexts/AuthContext";
 import ConfirmModal from "../components/ConfirmModal";
 import SearchableSelect from "../components/SearchableSelect";
 import { useToast } from "../contexts/ToastContext";
+import Pagination from "../components/Pagination";
+
 const InstallmentsPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -136,7 +138,14 @@ const InstallmentsPage: React.FC = () => {
           client.get("/customers"),
           client.get("/products"),
         ]);
-        setCustomers(custRes.data || []);
+        // Handle paginated response for customers
+        if (Array.isArray(custRes.data)) {
+          setCustomers(custRes.data);
+        } else if (custRes.data && Array.isArray(custRes.data.data)) {
+          setCustomers(custRes.data.data);
+        } else {
+          setCustomers([]);
+        }
         setProducts(prodRes.data || []);
       } catch (err) {
         console.error("Failed to load customers/products:", err);
@@ -1155,7 +1164,7 @@ const InstallmentsPage: React.FC = () => {
                     setFilterCustomerId(val);
                     setPage(1);
                     // We need to trigger load, but load is async and depends on state.
-                    // Ideally we should use useEffect for filter changes or pass the new value to load.
+                    // Ideally we should useEffect for filter changes or pass the new value to load.
                     // Since load reads from state, we might have a race condition if we call it immediately.
                     // However, the original code did: setFilterCustomerId(e.target.value); void load(1, limit);
                     // This implies load might be reading the *previous* state if it's not using args?
@@ -1166,7 +1175,7 @@ const InstallmentsPage: React.FC = () => {
                     // Actually, SearchableSelect onChange gives the value directly.
                     // We can wrap this in a useEffect or just rely on the fact that we are updating state.
                     // Better: trigger a reload effect or pass the new filter to load if possible.
-                    // For now, I'll just set state. The original code had a potential bug if load used state.
+                    // For now, I'll just set the state. The original code had a potential bug if load used state.
                     // Let's check load function signature if possible.
                     // But to be safe, I will just set the state and let the user trigger search or use a useEffect if one exists.
                     // Wait, the original code was:
@@ -1522,6 +1531,17 @@ const InstallmentsPage: React.FC = () => {
               </div>
             ))
           )}
+
+          {/* Pagination UI for Installments */}
+          <div className="mt-4">
+            <Pagination
+              page={page}
+              pageSize={limit}
+              total={totalItems}
+              onPageChange={setPage}
+              onPageSizeChange={setLimit}
+            />
+          </div>
 
           <div className="mt-6 flex items-center justify-between">
             <div className="text-sm text-slate-600">

@@ -75,10 +75,17 @@ export const PaymentsPage: React.FC = () => {
         setPayments(pay.data || []);
         setTotalPayments(pay.data.length || 0);
       } else {
-        setPayments(pay.data.data || pay.data || []);
-        setTotalPayments(pay.data.total || 0);
-        if (pay.data.page) setCurrentPage(pay.data.page);
-        if (pay.data.pageSize) setPageSize(pay.data.pageSize);
+        const paymentsData = pay.data.data || pay.data || [];
+        setPayments(paymentsData);
+        const total = Number(pay.data.total || paymentsData.length || 0)
+        setTotalPayments(total);
+        // Avoid triggering effect loops by only updating if changed
+        if (typeof pay.data.page === "number" && pay.data.page !== currentPage) {
+          setCurrentPage(pay.data.page);
+        }
+        if (typeof pay.data.pageSize === "number" && pay.data.pageSize !== pageSize) {
+          setPageSize(pay.data.pageSize);
+        }
       }
 
       const instList = Array.isArray(inst.data)
@@ -86,7 +93,14 @@ export const PaymentsPage: React.FC = () => {
         : inst.data?.data || [];
       // Already filtered by status=approved in API call, but ensure schedule exists
       setInstallments(instList.filter((i: any) => i.status === "approved" && i.installmentSchedule));
-      setCustomers(cust.data || []);
+
+      // Defensive: always set customers to array
+      const custData = Array.isArray(cust.data)
+        ? cust.data
+        : Array.isArray(cust.data?.data)
+        ? cust.data.data
+        : [];
+      setCustomers(custData);
     } catch (err) {
       setError("Failed to fetch data");
     } finally {
@@ -456,6 +470,9 @@ export const PaymentsPage: React.FC = () => {
                 <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">
                   Recorded By
                 </th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">
+                  Received By
+                </th>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700 w-36">
                   Actions
                 </th>
@@ -515,6 +532,9 @@ export const PaymentsPage: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-700">
                         {recordedBy}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-700">
+                        {p.receivedByName || p.receivedBy?.name || ""}
                       </td>
                       <td className="px-6 py-4 text-right">
                         {canRecord && (

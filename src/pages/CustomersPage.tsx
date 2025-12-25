@@ -9,6 +9,7 @@ import type { Customer } from "../types";
 import { formatCNIC, cleanCNIC } from "../utils/cnic";
 import { formatPhone, cleanPhone } from "../utils/phone";
 import { handleApiError, getContextualErrorMessage } from "../utils/errorHandler";
+import Pagination from "../components/Pagination";
 
 export const CustomersPage: React.FC = () => {
   const navigate = useNavigate();
@@ -27,14 +28,31 @@ export const CustomersPage: React.FC = () => {
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
+  const [total, setTotal] = useState(0);
+
   useEffect(() => {
     if (!authLoading) fetchCustomers();
-  }, [authLoading]);
+  }, [authLoading, page, limit]);
 
   const fetchCustomers = async () => {
     try {
-      const { data } = await client.get("/customers");
-      setCustomers(data);
+      const { data } = await client.get("/customers", { params: { page, limit } });
+      // Handle paginated response
+      if (Array.isArray(data)) {
+        setCustomers(data);
+        setTotal(data.length);
+      } else if (data && Array.isArray(data.data)) {
+        setCustomers(data.data);
+        setTotal(data.meta?.total || data.data.length || 0);
+        if (data.meta?.page) setPage(data.meta.page);
+        if (data.meta?.limit) setLimit(data.meta.limit);
+      } else {
+        setCustomers([]);
+        setTotal(0);
+      }
     } catch (err) {
       const resData = (err as any)?.response?.data;
       const msg =
@@ -385,6 +403,16 @@ export const CustomersPage: React.FC = () => {
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="mt-4">
+          <Pagination
+            page={page}
+            pageSize={limit}
+            total={total}
+            onPageChange={setPage}
+            onPageSizeChange={setLimit}
+          />
         </div>
       </main>
     </div>
