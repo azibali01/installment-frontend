@@ -46,7 +46,7 @@ export const ProductsPage: React.FC = () => {
     try {
       await client.post("/products", {
         name: formData.name,
-        price: Number.parseFloat(formData.price),
+        price: Number.parseFloat(String(formData.price).replace(/,/g, "")),
         description: formData.description || undefined,
         quantity: formData.quantity
           ? Number.parseInt(formData.quantity)
@@ -114,14 +114,23 @@ export const ProductsPage: React.FC = () => {
                   required
                 />
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   placeholder="Price (PKR)"
                   value={formData.price}
-                  onChange={(e) =>
-                    setFormData({ ...formData, price: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const raw = String(e.target.value || "").replace(/,/g, "")
+                    // Allow only digits and optional decimal point
+                    const match = raw.match(/^\d*(?:\.\d{0,2})?/) || [""]
+                    const valid = match[0]
+                    const parts = valid.split('.')
+                    const intPart = parts[0] || ''
+                    const fracPart = parts[1] || ''
+                    const intFormatted = intPart ? Number(intPart).toLocaleString('en-US') : ''
+                    const formatted = fracPart ? `${intFormatted}.${fracPart}` : intFormatted
+                    setFormData({ ...formData, price: formatted })
+                  }}
                   className="px-4 py-2 bg-white border border-gray-300 rounded text-slate-900 placeholder-slate-400"
-                  step="0.01"
                   required
                 />
 

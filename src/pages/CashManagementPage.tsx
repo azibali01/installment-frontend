@@ -100,8 +100,9 @@ export const CashManagementPage: React.FC = () => {
       return;
     }
 
-    const amount = parseFloat(transferForm.amount);
-    if (!amount || amount <= 0) {
+    const rawAmount = String(transferForm.amount || "").replace(/,/g, "");
+    const amount = parseFloat(rawAmount);
+    if (Number.isNaN(amount) || amount <= 0) {
       setError("Please enter a valid amount");
       return;
     }
@@ -206,15 +207,20 @@ export const CashManagementPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {allBalances.map((u) => (
-                        <tr key={u.id} className="border-b border-gray-100 hover:bg-gray-50">
-                          <td className="py-3 px-4 text-sm text-slate-900">{u.name}</td>
-                          <td className="py-3 px-4 text-sm text-slate-600 capitalize">{u.role}</td>
-                          <td className="py-3 px-4 text-sm text-slate-900 font-medium text-right">
-                            {formatCurrency(u.cashBalance || 0)}
-                          </td>
-                        </tr>
-                      ))}
+                      {allBalances.map((u) => {
+                        const uid = (u as any)._id ?? u.id;
+                        return (
+                          <tr key={uid} className="border-b border-gray-100 hover:bg-gray-50">
+                            
+                            <td className="py-3 px-4 text-sm text-slate-900">{u.name}</td>
+                            <td className="py-3 px-4 text-sm text-slate-600 capitalize">{u.role}</td>
+                            <td className="py-3 px-4 text-sm text-slate-900 font-medium text-right">
+                              {formatCurrency(u.cashBalance || 0)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      
                     </tbody>
                   </table>
                 </div>
@@ -238,7 +244,7 @@ export const CashManagementPage: React.FC = () => {
                   >
                     <option value="">Select user...</option>
                     {users.map((u: any) => {
-                      const userId = u._id || u.id;
+                      const userId = (u as any)._id ?? u.id;
                       return (
                         <option key={userId} value={userId}>
                           {u.name} ({u.role})
@@ -254,12 +260,12 @@ export const CashManagementPage: React.FC = () => {
                   </label>
                   <input
                     id="amount"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    max={balance}
+                    type="text"
+                    inputMode="decimal"
                     value={transferForm.amount}
-                    onChange={(e) => setTransferForm({ ...transferForm, amount: e.target.value })}
+                    onChange={(e) =>
+                      setTransferForm({ ...transferForm, amount: e.target.value.replace(/,/g, "") })
+                    }
                     className="w-full px-4 py-2 bg-white border border-gray-300 rounded text-slate-900"
                     placeholder="0.00"
                     required
@@ -286,7 +292,19 @@ export const CashManagementPage: React.FC = () => {
 
                 <button
                   type="submit"
-                  disabled={isTransferring || !transferForm.toUserId || !transferForm.amount}
+                  disabled={
+                    (() => {
+                      const raw = String(transferForm.amount || "").replace(/,/g, "");
+                      const n = parseFloat(raw);
+                      return (
+                        isTransferring ||
+                        !transferForm.toUserId ||
+                        Number.isNaN(n) ||
+                        n <= 0 ||
+                        n > balance
+                      );
+                    })()
+                  }
                   className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium py-2 px-4 rounded transition"
                 >
                   {isTransferring ? "Transferring..." : "Transfer Cash"}
@@ -360,7 +378,10 @@ export const CashManagementPage: React.FC = () => {
                         {transfers.map((transfer) => {
                           const isSent = transfer.fromUser.id === user?.id;
                           return (
-                            <tr key={transfer._id} className="border-b border-gray-100 hover:bg-gray-50">
+                            <tr
+                              key={transfer._id}
+                              className="border-b border-gray-100 hover:bg-gray-50"
+                            >
                               <td className="py-3 px-4 text-sm text-slate-600">
                                 {formatDate(transfer.createdAt)}
                               </td>

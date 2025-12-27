@@ -133,7 +133,7 @@ interface DashboardStats {
   totalCashIn: number;
   totalCashOut: number;
   cashInHand: number;
-  totalExpectedRevenue: number;
+  totalRevenue: number;
   totalRemainingRevenue: number;
 }
 
@@ -159,7 +159,7 @@ export const DashboardPage: React.FC = () => {
     totalCashIn: 0,
     totalCashOut: 0,
     cashInHand: 0,
-    totalExpectedRevenue: 0,
+    totalRevenue: 0,
     totalRemainingRevenue: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
@@ -205,7 +205,7 @@ export const DashboardPage: React.FC = () => {
           totalCashIn: d.totalCashIn || 0,
           totalCashOut: d.totalCashOut || 0,
           cashInHand: (d.totalCashIn || 0) - (d.totalCashOut || 0),
-          totalExpectedRevenue: d.totalExpectedRevenue || 0,
+          totalRevenue: d.totalRevenue || 0,
           totalRemainingRevenue: d.totalRemainingRevenue || 0,
         });
 
@@ -299,12 +299,12 @@ export const DashboardPage: React.FC = () => {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="card p-6">
-            <p className="text-slate-700 text-sm font-medium">Total Expected Revenue (Due)</p>
+            <p className="text-slate-700 text-sm font-medium">Total Revenue</p>
             <p className="text-3xl font-bold text-blue-600 mt-2">
-              {formatCurrency(stats.totalExpectedRevenue)}
+              {formatCurrency(stats.totalRevenue)}
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              Sum of all installments due till today
+              Sum of all installments for all plans (not rejected)
             </p>
           </div>
           <div className="card p-6">

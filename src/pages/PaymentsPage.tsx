@@ -67,7 +67,7 @@ export const PaymentsPage: React.FC = () => {
 
       const [pay, inst, cust] = await Promise.all([
         client.get("/payments", { params: payParams }),
-        client.get("/installments", { params: { includeSchedule: true, status: "approved" } }),
+        client.get("/installments", { params: { includeSchedule: true } }),
         client.get("/customers"),
       ]);
 
@@ -91,8 +91,10 @@ export const PaymentsPage: React.FC = () => {
       const instList = Array.isArray(inst.data)
         ? inst.data
         : inst.data?.data || [];
-      // Already filtered by status=approved in API call, but ensure schedule exists
-      setInstallments(instList.filter((i: any) => i.status === "approved" && i.installmentSchedule));
+      // Some deployments don't have a `status` field on plans — only include plans that have an installmentSchedule array.
+      setInstallments(
+        instList.filter((i: any) => Array.isArray(i.installmentSchedule) && i.installmentSchedule.length > 0)
+      );
 
       // Defensive: always set customers to array
       const custData = Array.isArray(cust.data)
