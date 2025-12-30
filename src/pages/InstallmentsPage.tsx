@@ -138,7 +138,8 @@ const InstallmentsPage: React.FC = () => {
       const [custRes, prodRes] = await Promise.all([
         // Fetch all customers (use high limit to get all customers for dropdown)
         client.get("/customers", { params: { page: 1, limit: 1000 } }),
-        client.get("/products"),
+        // Fetch all products (use high limit to get all products for dropdown)
+        client.get("/products", { params: { page: 1, limit: 1000 } }),
       ]);
       // Handle paginated response for customers
       if (Array.isArray(custRes.data)) {
@@ -148,7 +149,14 @@ const InstallmentsPage: React.FC = () => {
       } else {
         setCustomers([]);
       }
-      setProducts(prodRes.data || []);
+      // Handle paginated response for products
+      if (Array.isArray(prodRes.data)) {
+        setProducts(prodRes.data);
+      } else if (prodRes.data && Array.isArray(prodRes.data.data)) {
+        setProducts(prodRes.data.data);
+      } else {
+        setProducts([]);
+      }
     } catch (err) {
       console.error("Failed to load customers/products:", err);
     }
