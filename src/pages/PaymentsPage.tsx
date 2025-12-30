@@ -475,6 +475,9 @@ export const PaymentsPage: React.FC = () => {
                 <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">
                   Received By
                 </th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">
+                  Remaining Balance
+                </th>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700 w-36">
                   Actions
                 </th>
@@ -484,7 +487,7 @@ export const PaymentsPage: React.FC = () => {
               {isLoading ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-6 py-4 text-center text-slate-500"
                   >
                     Loading...
@@ -493,7 +496,7 @@ export const PaymentsPage: React.FC = () => {
               ) : payments.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-6 py-4 text-center text-slate-500"
                   >
                     No payments recorded
@@ -518,6 +521,15 @@ export const PaymentsPage: React.FC = () => {
                     : "";
                   const recordedBy =
                     p.recordedBy?.name || p.createdBy || p.createdByName || "";
+                  
+                  // Find the installment plan for this payment to get remaining balance
+                  const plan = installments.find(
+                    (inst: any) => String(inst._id) === String(p.installmentPlanId)
+                  );
+                  const remainingBalance = plan 
+                    ? ((plan as any).remaining ?? plan.remainingBalance ?? 0)
+                    : 0;
+                  
                   return (
                     <tr key={p._id} className="hover:bg-gray-50 transition">
                       <td className="px-6 py-4 text-sm text-slate-700">
@@ -537,6 +549,9 @@ export const PaymentsPage: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-700">
                         {p.receivedByName || p.receivedBy?.name || ""}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold text-blue-600">
+                        {formatCurrency(remainingBalance)}
                       </td>
                       <td className="px-6 py-4 text-right">
                         {canRecord && (
