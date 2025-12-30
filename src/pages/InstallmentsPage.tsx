@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import React, { useEffect, useState, useMemo, useRef } from "react";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import client from "../api/client";
 import { cleanCNIC, formatCNIC, isValidCNIC } from "../utils/cnic";
 import { formatPhone, cleanPhone } from "../utils/phone";
@@ -24,8 +24,10 @@ import Pagination from "../components/Pagination";
 
 const InstallmentsPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { user, hasPermission } = useAuth();
+  const lastLocationRef = useRef<string>("");
 
   const [installments, setInstallments] = useState<InstallmentPlan[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -154,26 +156,49 @@ const InstallmentsPage: React.FC = () => {
   // Load customers and products on mount
   useEffect(() => {
     void loadCustomersAndProducts();
+    lastLocationRef.current = location.pathname;
   }, []);
+
+  // Refresh customers when route changes (user navigates back from customer page)
+  // This ensures newly created customers appear in the dropdown
+  useEffect(() => {
+    if (lastLocationRef.current !== location.pathname && lastLocationRef.current !== "") {
+      // User navigated to this page from another page
+      lastLocationRef.current = location.pathname;
+      // Small delay to ensure customer was saved before refreshing
+      const timeoutId = setTimeout(() => {
+        void loadCustomersAndProducts();
+      }, 300);
+      return () => clearTimeout(timeoutId);
+    } else if (lastLocationRef.current === "") {
+      lastLocationRef.current = location.pathname;
+    }
+  }, [location.pathname]);
 
   // Refresh customers when form is opened (to get newly created customers)
   useEffect(() => {
     if (showForm) {
-      void loadCustomersAndProducts();
+      // Small delay to ensure any pending operations complete
+      const timeoutId = setTimeout(() => {
+        void loadCustomersAndProducts();
+      }, 100);
+      return () => clearTimeout(timeoutId);
     }
   }, [showForm]);
 
-  // Refresh customers when page becomes visible (user navigates back from customer page)
-  // This ensures newly created customers appear in the dropdown
+  // Also refresh when page becomes visible (fallback for tab switching)
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        void loadCustomersAndProducts();
+        // Only refresh if we're on the installments page
+        if (location.pathname === "/installments") {
+          void loadCustomersAndProducts();
+        }
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, []);
+  }, [location.pathname]);
 
   useEffect(() => {
     // Read customerId from URL query params
