@@ -136,7 +136,8 @@ const InstallmentsPage: React.FC = () => {
   const loadCustomersAndProducts = async () => {
     try {
       const [custRes, prodRes] = await Promise.all([
-        client.get("/customers"),
+        // Fetch all customers (use high limit to get all customers for dropdown)
+        client.get("/customers", { params: { page: 1, limit: 1000 } }),
         client.get("/products"),
       ]);
       // Handle paginated response for customers
