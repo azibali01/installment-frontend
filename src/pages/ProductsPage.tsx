@@ -9,6 +9,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { formatCurrency } from "../utils/format";
 import { handleApiError } from "../utils/errorHandler";
 import { useToast } from "../contexts/ToastContext";
+import Pagination from "../components/Pagination";
 
 export const ProductsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -25,14 +26,33 @@ export const ProductsPage: React.FC = () => {
   });
   const [error, setError] = useState("");
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
+  const [total, setTotal] = useState(0);
+
   useEffect(() => {
     fetchProducts();
-  }, []);
+  }, [page, limit]);
 
   const fetchProducts = async () => {
     try {
-      const { data } = await client.get("/products");
-      setProducts(data);
+      const { data } = await client.get("/products", { 
+        params: { page, limit } 
+      });
+      // Handle paginated response
+      if (Array.isArray(data)) {
+        setProducts(data);
+        setTotal(data.length);
+      } else if (data && Array.isArray(data.data)) {
+        setProducts(data.data);
+        setTotal(data.meta?.total || data.data.length || 0);
+        if (data.meta?.page) setPage(data.meta.page);
+        if (data.meta?.limit) setLimit(data.meta.limit);
+      } else {
+        setProducts([]);
+        setTotal(0);
+      }
     } catch (err) {
       setError("Failed to fetch products");
     } finally {
@@ -190,6 +210,16 @@ export const ProductsPage: React.FC = () => {
               </div>
             ))
           )}
+        </div>
+
+        <div className="mt-4">
+          <Pagination
+            page={page}
+            pageSize={limit}
+            total={total}
+            onPageChange={setPage}
+            onPageSizeChange={setLimit}
+          />
         </div>
       </main>
     </div>
