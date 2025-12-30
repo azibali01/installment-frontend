@@ -1345,7 +1345,7 @@ const InstallmentsPage: React.FC = () => {
                   <div>
                     <p className="text-slate-600 text-xs">Remaining</p>
                     <p className="text-blue-600 font-semibold">
-                      {formatCurrency(plan.remainingBalance || 0)}
+                      {formatCurrency((plan as any).remaining ?? plan.remainingBalance ?? 0)}
                     </p>
                   </div>
                 </div>
