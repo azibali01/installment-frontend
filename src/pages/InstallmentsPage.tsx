@@ -130,28 +130,49 @@ const InstallmentsPage: React.FC = () => {
     };
   }, [formData, products]);
 
-  // Load customers and products only once on mount
+  // Function to load customers and products
+  const loadCustomersAndProducts = async () => {
+    try {
+      const [custRes, prodRes] = await Promise.all([
+        client.get("/customers"),
+        client.get("/products"),
+      ]);
+      // Handle paginated response for customers
+      if (Array.isArray(custRes.data)) {
+        setCustomers(custRes.data);
+      } else if (custRes.data && Array.isArray(custRes.data.data)) {
+        setCustomers(custRes.data.data);
+      } else {
+        setCustomers([]);
+      }
+      setProducts(prodRes.data || []);
+    } catch (err) {
+      console.error("Failed to load customers/products:", err);
+    }
+  };
+
+  // Load customers and products on mount
   useEffect(() => {
-    const loadCustomersAndProducts = async () => {
-      try {
-        const [custRes, prodRes] = await Promise.all([
-          client.get("/customers"),
-          client.get("/products"),
-        ]);
-        // Handle paginated response for customers
-        if (Array.isArray(custRes.data)) {
-          setCustomers(custRes.data);
-        } else if (custRes.data && Array.isArray(custRes.data.data)) {
-          setCustomers(custRes.data.data);
-        } else {
-          setCustomers([]);
-        }
-        setProducts(prodRes.data || []);
-      } catch (err) {
-        console.error("Failed to load customers/products:", err);
+    void loadCustomersAndProducts();
+  }, []);
+
+  // Refresh customers when form is opened (to get newly created customers)
+  useEffect(() => {
+    if (showForm) {
+      void loadCustomersAndProducts();
+    }
+  }, [showForm]);
+
+  // Refresh customers when page becomes visible (user navigates back from customer page)
+  // This ensures newly created customers appear in the dropdown
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void loadCustomersAndProducts();
       }
     };
-    void loadCustomersAndProducts();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
 
   useEffect(() => {
