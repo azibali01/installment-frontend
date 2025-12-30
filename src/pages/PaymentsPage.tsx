@@ -526,9 +526,25 @@ export const PaymentsPage: React.FC = () => {
                   const plan = installments.find(
                     (inst: any) => String(inst._id) === String(p.installmentPlanId)
                   );
-                  const remainingBalance = plan 
-                    ? ((plan as any).remaining ?? plan.remainingBalance ?? 0)
-                    : 0;
+                  
+                  // Calculate remaining balance from plan
+                  let remainingBalance = 0;
+                  if (plan) {
+                    // Use calculated 'remaining' field if available (from backend)
+                    remainingBalance = (plan as any).remaining ?? plan.remainingBalance ?? 0;
+                    
+                    // If still 0, try calculating from schedule
+                    if (remainingBalance === 0 && plan.installmentSchedule && Array.isArray(plan.installmentSchedule)) {
+                      remainingBalance = plan.installmentSchedule.reduce((sum: number, item: any) => {
+                        const amt = Number(item.amount || 0);
+                        const paid = Number(item.paidAmount || 0);
+                        if (item.status === 'pending' || paid < amt) {
+                          return sum + Math.max(0, amt - paid);
+                        }
+                        return sum;
+                      }, 0);
+                    }
+                  }
                   
                   return (
                     <tr key={p._id} className="hover:bg-gray-50 transition">
