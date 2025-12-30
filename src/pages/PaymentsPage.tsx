@@ -567,8 +567,13 @@ export const PaymentsPage: React.FC = () => {
                     p.recordedBy?.name || p.createdBy || p.createdByName || "";
                   
                   // Find the installment plan for this payment to get remaining balance
+                  // Handle both populated object and string ID from backend
+                  const paymentPlanId = typeof p.installmentPlanId === 'object' && p.installmentPlanId !== null
+                    ? (p.installmentPlanId as any)._id
+                    : p.installmentPlanId;
+                  
                   const plan = installments.find(
-                    (inst: any) => String(inst._id) === String(p.installmentPlanId)
+                    (inst: any) => String(inst._id) === String(paymentPlanId)
                   );
                   
                   // Calculate remaining balance from plan
@@ -576,7 +581,7 @@ export const PaymentsPage: React.FC = () => {
                   if (plan) {
                     // Debug: Log plan details for first payment
                     if (payments.indexOf(payment) === 0) {
-                      console.log('[PAYMENTS DEBUG] First payment plan:', {
+                      console.log('[PAYMENTS DEBUG] First payment plan FOUND:', {
                         paymentId: p._id,
                         planId: plan._id,
                         remaining: (plan as any).remaining,
