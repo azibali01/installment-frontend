@@ -25,6 +25,8 @@ const InstallmentDetailPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [plan, setPlan] = useState<InstallmentPlan | null>(null);
+  const [actualPayments, setActualPayments] = useState<any[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const { user, hasPermission } = useAuth();
@@ -91,6 +93,28 @@ const InstallmentDetailPage: React.FC = () => {
       }
     };
     void fetchPlan();
+  }, [id]);
+
+  // Fetch actual payments for this plan
+  useEffect(() => {
+    if (!id) return;
+    const fetchPayments = async () => {
+      try {
+        setPaymentsLoading(true);
+        const res = await client.get("/payments", {
+          params: { installmentPlanId: id, pageSize: 1000 },
+        });
+        const payments = Array.isArray(res.data) 
+          ? res.data 
+          : res.data?.data || [];
+        setActualPayments(payments);
+      } catch (err: any) {
+        console.error("Failed to fetch payments:", err);
+      } finally {
+        setPaymentsLoading(false);
+      }
+    };
+    void fetchPayments();
   }, [id]);
 
   useEffect(() => {
