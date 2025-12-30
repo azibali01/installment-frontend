@@ -94,18 +94,51 @@ export const PaymentsPage: React.FC = () => {
       
       // Debug: Log first installment to verify remaining field
       if (instList.length > 0) {
-        console.log('[PAYMENTS DEBUG] First installment:', {
+        console.log('[PAYMENTS DEBUG] Raw API response - First installment:', {
           id: instList[0]._id,
           remaining: instList[0].remaining,
           remainingBalance: instList[0].remainingBalance,
-          hasSchedule: Array.isArray(instList[0].installmentSchedule)
+          hasSchedule: Array.isArray(instList[0].installmentSchedule),
+          allKeys: Object.keys(instList[0])
         });
       }
       
-      // Some deployments don't have a `status` field on plans — only include plans that have an installmentSchedule array.
-      setInstallments(
-        instList.filter((i: any) => Array.isArray(i.installmentSchedule) && i.installmentSchedule.length > 0)
-      );
+      // Process installments: ensure remaining field is properly set
+      const processedInstallments = instList
+        .filter((i: any) => Array.isArray(i.installmentSchedule) && i.installmentSchedule.length > 0)
+        .map((plan: any) => {
+          // Ensure remaining field exists and is a number
+          if (typeof plan.remaining !== 'number' || plan.remaining === 0) {
+            // Calculate from schedule if missing or zero
+            const calculated = plan.installmentSchedule.reduce((sum: number, item: any) => {
+              const amt = Number(item.amount || 0);
+              const paid = Number(item.paidAmount || 0);
+              if (item.status === 'pending' || paid < amt) {
+                return sum + Math.max(0, amt - paid);
+              }
+              return sum;
+            }, 0);
+            
+            console.log(`[PAYMENTS DEBUG] Calculated remaining for plan ${plan._id}:`, {
+              original: plan.remaining,
+              calculated: calculated,
+              remainingBalance: plan.remainingBalance
+            });
+            
+            return { ...plan, remaining: calculated };
+          }
+          return plan;
+        });
+      
+      console.log('[PAYMENTS DEBUG] Processed installments count:', processedInstallments.length);
+      if (processedInstallments.length > 0) {
+        console.log('[PAYMENTS DEBUG] First processed installment:', {
+          id: processedInstallments[0]._id,
+          remaining: processedInstallments[0].remaining
+        });
+      }
+      
+      setInstallments(processedInstallments);
 
       // Defensive: always set customers to array
       const custData = Array.isArray(cust.data)
