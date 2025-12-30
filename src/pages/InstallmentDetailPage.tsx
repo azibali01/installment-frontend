@@ -945,46 +945,127 @@ const InstallmentDetailPage: React.FC = () => {
           <h3 className="text-lg font-semibold mb-2">Schedule</h3>
           <div className="space-y-2">
             {plan.installmentSchedule?.length ? (
-              plan.installmentSchedule.map((sch, idx) => (
-                <div
-                  key={sch.month}
-                  className="p-3 border rounded bg-white flex items-center justify-between"
-                >
-                  <div>
-                    <div className="font-medium">Month {sch.month}</div>
-                    <div className="text-sm text-slate-500">
-                      Due: {new Date(sch.dueDate).toLocaleDateString()}
-                    </div>
-                  </div>
-                  <div className="text-right flex items-center gap-3">
-                    <div>
-                      <div className="font-semibold">
-                        {formatCurrency(sch.amount || 0)}
+              plan.installmentSchedule.map((sch, idx) => {
+                // Find actual payments for this month
+                const monthPayments = actualPayments.filter(
+                  (p: any) => p.installmentMonth === sch.month && p.status !== "reversed"
+                );
+                const totalPaidFromPayments = monthPayments.reduce(
+                  (sum, p) => sum + Number(p.amount || 0),
+                  0
+                );
+                const schedulePaid = Number(sch.paidAmount || 0);
+                const hasMismatch = Math.abs(totalPaidFromPayments - schedulePaid) > 0.01;
+
+                return (
+                  <div
+                    key={sch.month}
+                    className={`p-3 border rounded bg-white flex items-center justify-between ${
+                      hasMismatch ? "border-yellow-400 bg-yellow-50" : ""
+                    }`}
+                  >
+                    <div className="flex-1">
+                      <div className="font-medium">Month {sch.month}</div>
+                      <div className="text-sm text-slate-500">
+                        Due: {new Date(sch.dueDate).toLocaleDateString()}
                       </div>
-                      <div className="text-sm text-slate-500">{sch.status}</div>
+                      {hasMismatch && (
+                        <div className="text-xs text-yellow-700 mt-1">
+                          ⚠️ Mismatch: Schedule shows {formatCurrency(schedulePaid)}, 
+                          but actual payments: {formatCurrency(totalPaidFromPayments)}
+                          {monthPayments.length > 0 && (
+                            <span className="ml-2">
+                              ({monthPayments.length} payment{monthPayments.length > 1 ? "s" : ""})
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {!hasMismatch && monthPayments.length > 0 && (
+                        <div className="text-xs text-green-600 mt-1">
+                          ✓ {monthPayments.length} payment{monthPayments.length > 1 ? "s" : ""} recorded
+                        </div>
+                      )}
                     </div>
-                    <div className="print:hidden">
-                      <button
-                        onClick={() => {
-                          setSelectedScheduleIndex(idx);
-                          setLogForm({
-                            response: "",
-                            contactMethod: "phone",
-                            nextContactDate: "",
-                            notes: "",
-                          });
-                          setShowLogModal(true);
-                        }}
-                        className="px-3 py-1 bg-blue-600 text-white rounded"
-                      >
-                        Log Call
-                      </button>
+                    <div className="text-right flex items-center gap-3">
+                      <div>
+                        <div className="font-semibold">
+                          {formatCurrency(sch.amount || 0)}
+                        </div>
+                        <div className="text-sm text-slate-500">
+                          {sch.status} ({formatCurrency(schedulePaid)} paid)
+                        </div>
+                        {monthPayments.length > 0 && (
+                          <div className="text-xs text-blue-600 mt-1">
+                            Actual: {formatCurrency(totalPaidFromPayments)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="print:hidden">
+                        <button
+                          onClick={() => {
+                            setSelectedScheduleIndex(idx);
+                            setLogForm({
+                              response: "",
+                              contactMethod: "phone",
+                              nextContactDate: "",
+                              notes: "",
+                            });
+                            setShowLogModal(true);
+                          }}
+                          className="px-3 py-1 bg-blue-600 text-white rounded"
+                        >
+                          Log Call
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="text-slate-500">No schedule available</div>
+            )}
+          </div>
+
+          {/* Actual Payments Section */}
+          <div className="mt-6">
+            <h3 className="text-lg font-semibold mb-2">Actual Payment Records</h3>
+            {paymentsLoading ? (
+              <div className="text-sm text-slate-500">Loading payments...</div>
+            ) : actualPayments.length === 0 ? (
+              <div className="text-sm text-slate-500">No payment records found</div>
+            ) : (
+              <div className="space-y-2">
+                {actualPayments.map((payment: any) => (
+                  <div
+                    key={payment._id}
+                    className="p-3 border rounded bg-white flex items-center justify-between"
+                  >
+                    <div>
+                      <div className="font-medium">
+                        {payment.installmentMonth > 0
+                          ? `Month ${payment.installmentMonth}`
+                          : "Auto-allocated"}
+                      </div>
+                      <div className="text-sm text-slate-500">
+                        {new Date(payment.paymentDate).toLocaleDateString()} • 
+                        Recorded by: {payment.recordedBy?.name || "Unknown"}
+                        {payment.receivedBy?.name && ` • Received by: ${payment.receivedBy.name}`}
+                      </div>
+                      {payment.notes && (
+                        <div className="text-xs text-slate-400 mt-1">{payment.notes}</div>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold text-green-600">
+                        {formatCurrency(payment.amount || 0)}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {payment.status || "recorded"}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
