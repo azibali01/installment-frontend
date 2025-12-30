@@ -52,6 +52,7 @@ export interface InstallmentPlan {
   totalAmount: number
   downPayment: number
   remainingBalance: number
+  remaining?: number // Calculated remaining balance from schedule (source of truth)
   monthlyInstallment: number
   markupPercent: number
   numberOfMonths: number
