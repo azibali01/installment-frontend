@@ -91,6 +91,17 @@ export const PaymentsPage: React.FC = () => {
       const instList = Array.isArray(inst.data)
         ? inst.data
         : inst.data?.data || [];
+      
+      // Debug: Log first installment to verify remaining field
+      if (instList.length > 0) {
+        console.log('[PAYMENTS DEBUG] First installment:', {
+          id: instList[0]._id,
+          remaining: instList[0].remaining,
+          remainingBalance: instList[0].remainingBalance,
+          hasSchedule: Array.isArray(instList[0].installmentSchedule)
+        });
+      }
+      
       // Some deployments don't have a `status` field on plans — only include plans that have an installmentSchedule array.
       setInstallments(
         instList.filter((i: any) => Array.isArray(i.installmentSchedule) && i.installmentSchedule.length > 0)
@@ -530,6 +541,18 @@ export const PaymentsPage: React.FC = () => {
                   // Calculate remaining balance from plan
                   let remainingBalance = 0;
                   if (plan) {
+                    // Debug: Log plan details for first payment
+                    if (payments.indexOf(payment) === 0) {
+                      console.log('[PAYMENTS DEBUG] First payment plan:', {
+                        paymentId: p._id,
+                        planId: plan._id,
+                        remaining: (plan as any).remaining,
+                        remainingBalance: plan.remainingBalance,
+                        hasSchedule: Array.isArray(plan.installmentSchedule),
+                        scheduleLength: plan.installmentSchedule?.length
+                      });
+                    }
+                    
                     // Use calculated 'remaining' field if available (from backend)
                     remainingBalance = (plan as any).remaining ?? plan.remainingBalance ?? 0;
                     
@@ -543,6 +566,20 @@ export const PaymentsPage: React.FC = () => {
                         }
                         return sum;
                       }, 0);
+                      
+                      // Debug: Log calculated value
+                      if (payments.indexOf(payment) === 0) {
+                        console.log('[PAYMENTS DEBUG] Calculated from schedule:', remainingBalance);
+                      }
+                    }
+                  } else {
+                    // Debug: Log if plan not found
+                    if (payments.indexOf(payment) === 0) {
+                      console.log('[PAYMENTS DEBUG] Plan not found for payment:', {
+                        paymentId: p._id,
+                        installmentPlanId: p.installmentPlanId,
+                        totalInstallments: installments.length
+                      });
                     }
                   }
                   
