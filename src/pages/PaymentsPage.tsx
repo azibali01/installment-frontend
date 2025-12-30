@@ -67,7 +67,7 @@ export const PaymentsPage: React.FC = () => {
 
       const [pay, inst, cust] = await Promise.all([
         client.get("/payments", { params: payParams }),
-        client.get("/installments", { params: { includeSchedule: true } }),
+        client.get("/installments", { params: { page: 1, limit: 1000 } }), // Fetch all installments with remaining balance
         client.get("/customers"),
       ]);
 
