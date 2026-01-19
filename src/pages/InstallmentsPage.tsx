@@ -187,10 +187,13 @@ const InstallmentsPage: React.FC = () => {
   // Refresh customers when form is opened (to get newly created customers)
   useEffect(() => {
     if (showForm) {
-      // Small delay to ensure any pending operations complete
+      // Fetch customers/products immediately when the form opens so
+      // the dropdown has options. Also keep a short delayed retry
+      // to cover any timing edge-cases.
+      void loadCustomersAndProducts();
       const timeoutId = setTimeout(() => {
         void loadCustomersAndProducts();
-      }, 100);
+      }, 300);
       return () => clearTimeout(timeoutId);
     }
   }, [showForm]);
